@@ -1,0 +1,600 @@
+"""
+   Copyright 2026 my-PV GmbH, Austria
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+The my-PV library.
+"""
+
+import logging
+import re
+from abc import ABC, abstractmethod
+
+from mypv.exceptions import MyPVConnectionError
+
+from .configs import read_config
+from .connection import (
+    MyPVCloudConnection,
+    MyPVConnection,
+    MyPVHTTPConnection,
+    MyPVHTTPSConnection,
+)
+from .exceptions import MyPVNotSupportedError
+
+logger = logging.getLogger(__name__)
+
+CLOUD_FRONTEND = "https://live.my-pv.com/"
+
+_IGNORED_SETUP_KEYS = [
+    "fwversion",
+    "psversion",
+    "hwvers",
+    "serialno",
+    "macadr",
+]
+_IGNORED_DATA_KEYS = [
+    "device",
+]
+_BOOST_SETUP_KEYS = [
+    "boostactive",
+    "bsttof1",
+    "bsttof2",
+    "bstton1",
+    "bstton2",
+    "bstwd1",
+    "bstwd2",
+    "bstwd3",
+    "bstwd4",
+    "bstwd5",
+    "bstwd6",
+    "bstwd7",
+    "ww1boost",
+]
+
+
+class MyPVDevice(ABC):
+    """
+    my-PV base class for interfacing with my-PV devices.
+    """
+
+    advanced: bool = False
+
+    _serial_number: str | None = None
+    _model: str | None = None
+    _hardware_version: str | None = None
+    _firmware_version: str | None = None
+    _mac_address: str | None = None
+
+    _connection: MyPVConnection | None = None
+    _uri: str | None = None
+    _setup_uri: str | None = None
+
+    _setup_values: dict
+    _data_values: dict
+    _device_config: dict
+
+    def __init__(self, advanced: bool = False):
+
+        self.advanced = advanced
+
+        self._setup_values = {}
+        self._data_values = {}
+        self._device_config = {}
+
+    async def async_init(self):
+        pass
+
+    async def _async_init(self):
+        await self.async_init()
+        return self
+
+    def __await__(self):
+        return self._async_init().__await__()
+
+    def _init_device(self, setup_values: dict) -> str:
+        self._hardware_version = setup_values.get("hwvers")
+        self._firmware_version = setup_values.get("fwversion")
+
+        # Format MAC address
+        mac_address = setup_values.get("macadr")
+        if mac_address:
+            mac_address = mac_address.lower()
+            mac_address = re.sub("[^0-9a-f]", "", mac_address)
+            mac_address = ":".join(mac_address[i : i + 2] for i in range(0, 12, 2))
+        self._mac_address = mac_address
+
+        # Boost mode on the AC ELWA 2 is special because it depends on mainmode.
+        # If mainmode is 1 only option 4 is possible.
+        # If mainmode is 3 options 4 and 5 are possible.
+        if (
+            self.serial_number.startswith(("160150", "160151", "160152"))
+            and setup_values.get("mainmode") == 1
+        ):
+            del self._device_config.get("setup").get("bstmode").get("options", {})["5"]
+
+    @abstractmethod
+    async def connect(self) -> bool:
+        """
+        Connect to my-PV device.
+
+        Returns True when connection could be established else False.
+        """
+        raise NotImplementedError
+
+    @property
+    def connected(self) -> bool:
+        """True when connection is established else False."""
+        return self._connection and self._connection.is_open()
+
+    @property
+    def setup_uri(self) -> str | None:
+        """The location of the my-PV device setup web interface."""
+        return self._setup_uri
+
+    @property
+    def uri(self) -> str | None:
+        """The underlying connection to the my-PV device"""
+        return self._uri
+
+    async def disconnect(self) -> bool:
+        """
+        Disconnect from my-PV device.
+
+        Returns True when connection could be closed else False.
+        """
+        if self._connection is None:
+            return True
+
+        if await self._connection.close():
+            self._connection = None
+            return True
+
+        return False
+
+    @property
+    def serial_number(self) -> str:
+        """The device serial number."""
+        return self._serial_number
+
+    @property
+    def model(self) -> str:
+        """The device model."""
+        return self._model
+
+    @property
+    def hardware_version(self) -> str:
+        """The device hardware version."""
+        return self._hardware_version
+
+    @property
+    def firmware_version(self) -> str:
+        """The device firmware version."""
+        return self._firmware_version
+
+    @property
+    def mac_address(self) -> str | None:
+        """The device MAC address."""
+        return self._mac_address
+
+    async def _read_config(self) -> None:
+        self._device_config = await read_config(self._serial_number)
+
+    async def fetch_data(self) -> bool:
+        """
+        Fetch data from the device
+
+        Returns True when successful else False.
+        """
+        setup_values = await self._connection.fetch_setup()
+        setup_values = {
+            key: val
+            for key, val in setup_values.items()
+            if key not in _IGNORED_SETUP_KEYS and val not in [None, "null"]
+        }
+
+        data_values = await self._connection.fetch_data()
+        data_values = {
+            key: val
+            for key, val in data_values.items()
+            if key not in _IGNORED_DATA_KEYS
+            and val not in [None, "null"]
+            and not (
+                key in self._device_config["data"]
+                and self._device_config["data"][key].get("type") == "number"
+                and self._device_config["data"][key].get("unit") == "°C"
+                and val == 0
+            )
+        }
+
+        self._setup_values = {
+            key: setup_values[key]
+            for key, val in self._device_config["setup"].items()
+            if key in setup_values and not val.get("readonly", False)
+        } | {
+            key: data_values[key]
+            for key, val in self._device_config["data"].items()
+            if key in data_values and not val.get("readonly", True)
+        }
+
+        self._data_values = {
+            key: setup_values[key]
+            for key, val in self._device_config["setup"].items()
+            if key in setup_values and val.get("readonly", False)
+        } | {
+            key: data_values[key]
+            for key, val in self._device_config["data"].items()
+            if key in data_values and val.get("readonly", True)
+        }
+
+        return True
+
+    def supports_configuration(self, key: str) -> bool:
+        if key not in self._setup_values.keys():
+            return False
+        if (
+            key in self._device_config["setup"]
+            and not self._device_config["setup"][key].get("readonly", False)
+            and self._device_config["setup"][key].get("advanced", False)
+            in [False, self.advanced]
+        ):
+            return True
+        if (
+            key in self._device_config["data"]
+            and not self._device_config["data"][key].get("readonly", True)
+            and self._device_config["data"][key].get("advanced", False)
+            in [False, self.advanced]
+        ):
+            return True
+
+        return False
+
+    def get_setup_configurations(self) -> dict:
+        """Gets the configuration of the available setup parameters."""
+        setup_keys = self._setup_values.keys()
+        return {
+            key: val
+            for key, val in self._device_config["setup"].items()
+            if key in setup_keys
+            and not val.get("readonly", False)
+            and val.get("advanced", False) in [False, self.advanced]
+        } | {
+            key: val
+            for key, val in self._device_config["data"].items()
+            if key in setup_keys
+            and not val.get("readonly", True)
+            and val.get("advanced", False) in [False, self.advanced]
+        }
+
+    def get_setup_configuration(self, key: str) -> dict | None:
+        return self.get_setup_configurations().get(key)
+
+    def get_setup_value(self, key: str) -> bool | float | int | str | None:
+        """Gets the value of the given setup parameter."""
+        if not self.connected:
+            raise MyPVConnectionError()
+
+        if not self.supports_configuration(key):
+            raise MyPVNotSupportedError
+
+        # Disable all but Device Mode when Device Mode is Off
+        if key != "devmode" and self._setup_values.get("devmode") == 0:
+            return None
+
+        # Disable Boost Active when Boost Mode is Off
+        if key in _BOOST_SETUP_KEYS and self._setup_values.get("bstmode") == 0:
+            return None
+
+        config = self.get_setup_configuration(key)
+        value = self._setup_values.get(key, None)
+        match config.get("type"):
+            case "boolean":
+                value = bool(value)
+            case "number":
+                value = int(value)
+                if divider := config.get("divider"):
+                    value = value / divider
+                if multiplier := config.get("multiplier"):
+                    value = value * multiplier
+            case "enumeration":
+                value = str(value)
+            case "string":
+                value = str(value)
+
+        return value
+
+    def supports_data(self, key: str) -> bool:
+        if key not in self._data_values.keys():
+            return False
+        if (
+            key in ["wifi_signal", "wifi_signal_strength"]
+            and self._data_values.get("cur_eth_mode") == 0
+        ):
+            return False
+        if (
+            key in self._device_config["data"]
+            and self._device_config["data"][key].get("readonly", True)
+            and self._device_config["data"][key].get("advanced", False)
+            in [False, self.advanced]
+        ):
+            return True
+        if (
+            key in self._device_config["setup"]
+            and self._device_config["setup"][key].get("readonly", False)
+            and self._device_config["setup"][key].get("advanced", False)
+            in [False, self.advanced]
+        ):
+            return True
+
+        return False
+
+    def get_data_configurations(self) -> dict:
+        """Gets the configuration of the available device data."""
+        data_keys = self._data_values.keys()
+        data_configurations = {
+            key: val
+            for key, val in self._device_config["setup"].items()
+            if key in data_keys
+            and val.get("readonly", False)
+            and val.get("advanced", False) in [False, self.advanced]
+        } | {
+            key: val
+            for key, val in self._device_config["data"].items()
+            if key in data_keys
+            and val.get("readonly", True)
+            and val.get("advanced", False) in [False, self.advanced]
+        }
+
+        if self._data_values.get("cur_eth_mode") == 0:
+            data_configurations.pop("wifi_signal", None)
+            data_configurations.pop("wifi_signal_strength", None)
+
+        return data_configurations
+
+    def get_data_configuration(self, key: str) -> dict | None:
+        return self.get_data_configurations().get(key)
+
+    def get_data_value(self, key: str) -> bool | float | int | str | None:
+        """Gets the value of the given device data key."""
+        if not self.connected:
+            raise MyPVConnectionError()
+
+        if not self.supports_data(key):
+            raise MyPVNotSupportedError(key)
+
+        config = self.get_data_configuration(key)
+        value = self._data_values.get(key, None)
+        match config.get("type"):
+            case "boolean":
+                value = bool(value)
+            case "number":
+                value = int(value)
+                if divider := config.get("divider"):
+                    value = value / divider
+                if multiplier := config.get("multiplier"):
+                    value = value * multiplier
+            case "enumeration":
+                value = str(value)
+            case "string":
+                value = str(value)
+
+        return value
+
+    async def set_setup_value(self, key: str, value: bool | float | int | str) -> bool:
+        """Sets the value of the given setup parameter."""
+        if not self.connected:
+            raise MyPVConnectionError()
+
+        if not self.supports_configuration(key):
+            raise MyPVNotSupportedError(key)
+
+        # Disable all but Device Mode when Device Mode is Off
+        if key != "devmode" and self._setup_values.get("devmode") == 0:
+            return False
+
+        # Disable Boost Active when Boost Mode is Off
+        if key in _BOOST_SETUP_KEYS and self._setup_values.get("bstmode") == 0:
+            return False
+
+        config = self.get_setup_configuration(key)
+        command = config.get("command")
+        if command:
+            return await self.send_command(command, value)
+
+        match config.get("type"):
+            case "boolean":
+                value = int(value)
+            case "number":
+                if not config.get("min", 0) <= value <= config.get("max"):
+                    return False
+
+                if divider := config.get("divider"):
+                    value = value * divider
+                if multiplier := config.get("multiplier"):
+                    value = value / multiplier
+
+                value = int(value)
+            case "enumeration":
+                if value not in config.get("options"):
+                    return False
+                value = int(value)
+
+        result = await self._connection.set_setup_value(key, value)
+
+        if result:
+            self._setup_values[key] = value
+
+        return result
+
+    def supports_command(self, command: str) -> bool:
+        return command in self._device_config["commands"] and self._device_config[
+            "commands"
+        ][command].get("advanced", False) in [False, self.advanced]
+
+    def get_command_configurations(self) -> dict:
+        """Gets the configuration of the available commands supported by the device."""
+        return {
+            key: val
+            for key, val in self._device_config["commands"].items()
+            if val.get("advanced", False) in [False, self.advanced]
+        }
+
+    def get_command_configuration(self, command: str) -> dict | None:
+        return self.get_command_configurations().get(command)
+
+    async def send_command(
+        self, command: str, value: bool | float | int | str | None = None
+    ) -> bool:
+        """Sends a command to the device."""
+        if not self.connected:
+            raise MyPVConnectionError()
+
+        if not self.supports_command(command):
+            raise MyPVNotSupportedError(command)
+
+        config = self.get_command_configuration(command)
+        match config.get("type"):
+            case "boolean":
+                value = int(value)
+            case "number":
+                value = int(value)
+                if not config.get("min", 0) <= value <= config.get("max"):
+                    return False
+
+                if divider := config.get("divider"):
+                    value = value * divider
+                if multiplier := config.get("multiplier"):
+                    value = value / multiplier
+            case "fixed":
+                value = config.get("value")
+            case "any":
+                value = 1
+
+        return await self._connection.send_command(command, value)
+
+    @property
+    def is_on(self) -> bool:
+        return self.get_setup_value("devmode")
+
+    async def turn_on(self) -> bool:
+        return await self.set_setup_value("devmode", True)
+
+    async def turn_off(self) -> bool:
+        return await self.set_setup_value("devmode", False)
+
+
+class MyPVLocalDevice(MyPVDevice):
+    """
+    my-PV class for interfacing with my-PV devices over a (local) TCP/IP connection.
+    """
+
+    _host: str
+    _password: str
+
+    def __init__(
+        self, host: str, password: str | None = None, advanced: bool = False
+    ) -> None:
+        assert host is not None
+
+        super().__init__(advanced=advanced)
+
+        self._host = host
+        self._password = password
+
+        if password:
+            self._setup_uri = f"https://{host}/"
+
+    async def connect(self) -> bool:
+        await self.disconnect()
+
+        if self._password:
+            connection = MyPVHTTPSConnection(self._host, self._password)
+        else:
+            connection = MyPVHTTPConnection(self._host)
+        self._uri = connection.uri
+
+        try:
+            if not await connection.open():
+                return False
+        finally:
+            if connection._mypv_dev:
+                self._serial_number = connection._mypv_dev.get("sn")
+                await self._read_config()
+                self._model = self._device_config.get("name")
+                self._firmware_version = connection._mypv_dev.get("fwversion")
+
+        self._connection = connection
+
+        # Get the device setup
+        setup_values = await connection.fetch_setup()
+
+        self._init_device(setup_values)
+
+        if not self._setup_uri and setup_values.get("cloudmode"):
+            self._setup_uri = CLOUD_FRONTEND
+
+        return True
+
+
+class MyPVCloudDevice(MyPVDevice):
+    """
+    my-PV class for interfacing with my-PV devices over the cloud.
+    """
+
+    _setup_uri = CLOUD_FRONTEND
+
+    _host: str | None
+    _serial_number: str
+    _api_token: str
+
+    def __init__(
+        self,
+        serial_number: str,
+        api_token: str,
+        advanced: bool = False,
+        *,
+        host: str | None = None,
+    ) -> None:
+        assert serial_number is not None
+        assert api_token is not None
+
+        super().__init__(advanced=advanced)
+
+        self._host = host
+        self._serial_number = serial_number
+        self._api_token = api_token
+
+    async def async_init(self):
+        await super().async_init()
+        await self._read_config()
+        self._model = self._device_config.get("name")
+
+    async def connect(self) -> bool:
+        await self.disconnect()
+
+        connection = MyPVCloudConnection(
+            self._serial_number, self._api_token, host=self._host
+        )
+
+        if not await connection.open():
+            return False
+
+        self._connection = connection
+
+        # Get the device setup
+        setup_values = await self._connection.fetch_setup()
+
+        self._init_device(setup_values)
+
+        await self._read_config()
+
+        return True
