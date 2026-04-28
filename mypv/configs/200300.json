@@ -1,0 +1,56 @@
+{
+  "name": "AC•THOR 9s",
+  "commands": {},
+  "data": {
+    "curr_l2": {
+      "name": "Mains Current Phase L2",
+      "type": "number",
+      "unit": "A",
+      "divider": 10
+    },
+    "curr_l3": {
+      "name": "Mains Current Phase L3",
+      "type": "number",
+      "unit": "A",
+      "divider": 10
+    },
+    "curr_mains": {
+      "name": "Mains Current Phase L1",
+      "type": "number",
+      "unit": "A",
+      "divider": 10
+    },
+    "power_ac9": {
+      "name": "Heating Power",
+      "type": "number",
+      "unit": "W"
+    },
+    "volt_l2": {
+      "name": "Voltage Phase L2",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_l3": {
+      "name": "Voltage Phase L3",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_mains": {
+      "name": "Voltage Phase L1",
+      "type": "number",
+      "unit": "V"
+    }
+    
+  },
+  "setup": {
+    "bstmode": {
+      "name": "Boost Mode",
+      "options": {
+        "0": "Off",
+        "1": "On",
+        "3": "Relais"
+      },
+      "type": "enumeration"
+    }
+  }
+}

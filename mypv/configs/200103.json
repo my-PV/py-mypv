@@ -1,0 +1,22 @@
+{
+  "name": "AC•THOR i",
+  "commands": {},
+  "data": {
+    "power_act": {
+      "name": "Heating Power",
+      "type": "number",
+      "unit": "W"
+    }
+  },
+  "setup": {
+    "bstmode": {
+      "name": "Boost Mode",
+      "options": {
+        "0": "Off",
+        "1": "On",
+        "3": "Relais"
+      },
+      "type": "enumeration"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "AC ELWA 2",
+  "commands": {},
+  "data": {
+    "fwversionlatest": {
+      "name": "Latest Firmware",
+      "type": "string"
+    },
+    "power_elwa2": {
+      "name": "Heating Power",
+      "type": "number",
+      "unit": "W"
+    },
+    "upd_percentage": {
+      "name": "Update Percentage",
+      "type": "number",
+      "unit": "%"
+    },
+    "upd_state": {
+      "name": "Update Status",
+      "type": "number"
+    }
+  },
+  "setup": {
+    "bstmode": {
+      "name": "Boost Mode",
+      "type": "enumeration",
+      "options": {
+        "0": "Off",
+        "1": "On",
+        "4": "SELV-Relais",
+        "5": "AUX-Relais"
+      }
+    },
+    "mainmode": {
+      "firmware": ">=e0001000",
+      "options": {
+        "1": "Hot water 3.5 kW",
+        "3": "Hot water 3.5 kW + 3 kW"
+      }
+    }
+  }
+}

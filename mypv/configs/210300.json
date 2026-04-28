@@ -1,0 +1,22 @@
+{
+  "name": "HEA•THOR IoT 3,5 kW",
+  "commands": {},
+  "data": {
+    "power_grid": {
+      "name": "Grid Power",
+      "type": "number",
+      "unit": "W"
+    }
+  },
+  "setup": {
+    "bstmode": {
+      "name": "Boost Mode",
+      "options": {
+        "0": "Off",
+        "1": "On",
+        "3": "Relais"
+      },
+      "type": "enumeration"
+    }
+  }
+}

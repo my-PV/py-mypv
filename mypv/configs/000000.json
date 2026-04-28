@@ -1,0 +1,363 @@
+{
+  "commands": {
+    "bststrt": {
+      "name": "Manual Boost",
+      "type": "boolean"
+    },
+    "check_fwupd": {
+      "name": "Check Firmware Update",
+      "type": "any"
+    },
+    "factory_reset": {
+      "advanced": true,
+      "name": "Factory Reset",
+      "type": "fixed",
+      "value": 1
+    },
+    "firmware_download": {
+      "firmware": ">=a0020000",
+      "name": "Download Firmware",
+      "type": "any"
+    },
+    "firmware_update": {
+      "firmware": ">=a0020000",
+      "name": "Firmware Update",
+      "type": "any"
+    },
+    "reboot_device": {
+      "name": "Reboot",
+      "type": "fixed",
+      "value": 1
+    }
+  },
+  "data": {
+    "boostactive": {
+      "command": "bststrt",
+      "name": "Boost Active",
+      "readonly": false,
+      "type": "boolean"
+    },
+    "bststrt": {
+      "name": "Manual Boost",
+      "readonly": false,
+      "type": "boolean"
+    },
+    "coversion": {
+      "name": "Co-controller version",
+      "type": "string"
+    },
+    "ctrlstate": {
+      "advanced": true,
+      "name": "Status Control",
+      "type": "string"
+    },
+    "cur_eth_mode": {
+      "name": "Network Mode",
+      "options": {
+        "0": "LAN",
+        "1": "WLAN",
+        "2": "AP"
+      },
+      "type": "enumeration"
+    },
+    "curr_mains": {
+      "divider": 10,
+      "name": "Mains Current",
+      "type": "number",
+      "unit": "A"
+    },
+    "device": {
+      "name": "Device Type",
+      "type": "string"
+    },
+    "freq": {
+      "divider": 1000,
+      "name": "Mains Frequency",
+      "type": "number",
+      "unit": "Hz"
+    },
+    "fwversion": {
+      "name": "Firmware Version",
+      "type": "string"
+    },
+    "psversion": {
+      "name": "Power Section Version",
+      "type": "string"
+    },
+    "screen_mode_flag": {
+      "name": "Device Status",
+      "options": {
+        "0": "Standby",
+        "1": "Heat",
+        "2": "Boost",
+        "3": "Heating finished",
+        "4": "No connection / Disabled",
+        "5": "Error",
+        "6": "Block active"
+      },
+      "type": "enumeration"
+    },
+    "soc": {
+      "name": "Boiler State of Charge",
+      "type": "number",
+      "unit": "%"
+    },
+    "surplus": {
+      "name": "Grid Power",
+      "type": "number",
+      "unit": "W"
+    },
+    "temp1": {
+      "divider": 10,
+      "name": "Temperature 1",
+      "type": "number",
+      "unit": "°C"
+    },
+    "temp2": {
+      "divider": 10,
+      "name": "Temperature 2",
+      "type": "number",
+      "unit": "°C"
+    },
+    "temp3": {
+      "divider": 10,
+      "name": "Temperature 3",
+      "type": "number",
+      "unit": "°C"
+    },
+    "temp4": {
+      "divider": 10,
+      "name": "Temperature 4",
+      "type": "number",
+      "unit": "°C"
+    },
+    "uptime": {
+      "name": "Uptime",
+      "type": "number",
+      "unit": "h"
+    },
+    "volt_mains": {
+      "name": "Voltage",
+      "type": "number",
+      "unit": "V"
+    },
+    "wifi_signal": {
+      "name": "Wi-Fi Signal Strength",
+      "options": {
+        "0": "Bad",
+        "1": "Bad",
+        "2": "Ok",
+        "3": "Good",
+        "4": "Strong"
+      },
+      "type": "enumeration"
+    },
+    "wifi_signal_strength": {
+      "name": "Wi-Fi Signal Strength",
+      "type": "number",
+      "unit": "dBm"
+    }
+  },
+  "setup": {
+    "bstmode": {
+      "name": "Boost Mode",
+      "type": "boolean"
+    },
+    "bsttof1": {
+      "advanced": true,
+      "max": 24,
+      "name": "Boost switch-off time 1",
+      "type": "number",
+      "unit": "hh"
+    },
+    "bsttof2": {
+      "advanced": true,
+      "max": 24,
+      "name": "Boost switch-off time 2",
+      "type": "number",
+      "unit": "hh"
+    },
+    "bstton1": {
+      "advanced": true,
+      "max": 23,
+      "name": "Boost switch-on time 1",
+      "type": "number",
+      "unit": "hh"
+    },
+    "bstton2": {
+      "advanced": true,
+      "max": 23,
+      "name": "Boost switch-on time 2",
+      "type": "number",
+      "unit": "hh"
+    },
+    "bstwd1": {
+      "name": "Boost Monday",
+      "type": "boolean",
+      "advanced": true
+    },
+    "bstwd2": {
+      "name": "Boost Tuesday",
+      "type": "boolean",
+      "advanced": true
+    },
+    "bstwd3": {
+      "name": "Boost Wednesday",
+      "type": "boolean",
+      "advanced": true
+    },
+    "bstwd4": {
+      "name": "Boost Thursday",
+      "type": "boolean",
+      "advanced": true
+    },
+    "bstwd5": {
+      "name": "Boost Friday",
+      "type": "boolean",
+      "advanced": true
+    },
+    "bstwd6": {
+      "name": "Boost Saturday",
+      "type": "boolean",
+      "advanced": true
+    },
+    "bstwd7": {
+      "name": "Boost Sundays",
+      "type": "boolean",
+      "advanced": true
+    },
+    "cloudmode": {
+      "advanced": true,
+      "name": "Cloud Mode",
+      "type": "boolean"
+    },
+    "cloudserver": {
+      "advanced": true,
+      "name": "Cloud server number",
+      "readonly": true,
+      "type": "string"
+    },
+    "debugmode": {
+      "advanced": true,
+      "name": "Debug Mode",
+      "type": "boolean"
+    },
+    "devmode": {
+      "name": "Device Mode",
+      "type": "boolean"
+    },
+    "dhcp": {
+      "advanced": true,
+      "name": "DHCP Mode",
+      "type": "boolean"
+    },
+    "dns": {
+      "advanced": true,
+      "name": "DNS address",
+      "type": "string"
+    },
+    "gw": {
+      "advanced": true,
+      "name": "Gateway address",
+      "type": "string"
+    },
+    "ip": {
+      "advanced": true,
+      "name": "Static IP address",
+      "type": "string"
+    },
+    "legint": {
+      "advanced": true,
+      "max": 14,
+      "min": 1,
+      "name": "Legionella Mode: activation interval",
+      "type": "number",
+      "unit": "Days"
+    },
+    "legmode": {
+      "advanced": true,
+      "name": "Legionella Mode",
+      "type": "boolean"
+    },
+    "legtemp": {
+      "advanced": true,
+      "max": 80,
+      "min": 40,
+      "name": "Legionella Mode: Temperature",
+      "type": "number",
+      "unit": "°C"
+    },
+    "legton": {
+      "advanced": true,
+      "max": 23,
+      "name": "Legionella Mode: starting hour",
+      "type": "number",
+      "unit": "hh"
+    },
+    "macadr": {
+      "name": "MAC address",
+      "readonly": true,
+      "type": "string"
+    },
+    "mainmode": {
+      "advanced": true,
+      "name": "Main Mode",
+      "type": "enumeration",
+      "options": {
+      }
+    },
+    "maxpwr": {
+      "max": 100,
+      "min": 17,
+      "name": "Maximum Power",
+      "type": "number",
+      "unit": "%"
+    },
+    "serialno": {
+      "name": "Serial Number",
+      "readonly": true,
+      "type": "string"
+    },
+    "sn": {
+      "advanced": true,
+      "name": "Subnet mask",
+      "type": "string"
+    },
+    "ww1boost": {
+      "divider": 10,
+      "max": 95,
+      "min": 5,
+      "name": "Boost Target Temperature",
+      "step": 0.1,
+      "type": "number",
+      "unit": "°C"
+    },
+    "ww1target": {
+      "divider": 10,
+      "max": 95,
+      "min": 5,
+      "name": "Target Temperature",
+      "step": 0.1,
+      "type": "number",
+      "unit": "°C"
+    },
+    "ww_boost_h": {
+      "divider": 10,
+      "max": 9.9,
+      "min": 0.1,
+      "name": "Minimum Hysteresis",
+      "step": 0.1,
+      "type": "number",
+      "unit": "°C"
+    },
+    "ww_targ_h": {
+      "divider": 10,
+      "max": 9.9,
+      "min": 0.1,
+      "name": "Maximum Hysteresis",
+      "step": 0.1,
+      "type": "number",
+      "unit": "°C"
+    }
+  }
+}
