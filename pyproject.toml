@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling>=1.29", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "mypv/_version.py"
+
+[tool.hatch.version]
+source = "vcs"
+
+[project]
+name = "my-PV Library"
+dynamic = ["version"]
+license = {text = "Apache-2.0"}
+authors = [
+    { name="my-PV GmbH", email="info@my-pv.com" },
+    { name="Rogier van Staveren", email="rogier@batoid.com" }
+]
+description = "Library to interface with my-PV devices."
+readme = "README.md"
+requires-python = ">=3.14"
+classifiers = [
+    "Programming Language :: Python :: 3.14",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Development Status :: 4 - Beta"
+]
+dependencies = [
+	"aiohttp>=3.13.5"
+]
+
+[project.urls]
+Homepage = "https://my-pv.com/"
+Repository = "https://github.com/my-PV/py-mypv"
+Issues = "https://github.com/my-PV/py-mypv/issues"
+
+[tool.isort]
+# https://github.com/PyCQA/isort/wiki/isort-Settings
+profile = "black"
+skip = "mypv/_version.py"
+
+[tool.black]
+exclude = 'mypv/_version.py'
+
+[tool.pylint]
+ignore = "_version.py"
+recursive = "y"
+
+[tool.mypy]
+python_version = "3.14"
+mypy_path = "mypv"
+
+[[tool.mypy.overrides]]
+module = ["*._version"]
+ignore_missing_imports = true
+
