@@ -5,6 +5,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.hooks.vcs]
 version-file = "mypv/_version.py"
 
+[tool.hatch.build.targets.sdist]
+packages = [ "mypv" ]
+
 [tool.hatch.version]
 source = "vcs"
 
@@ -54,4 +57,3 @@ mypy_path = "mypv"
 [[tool.mypy.overrides]]
 module = ["*._version"]
 ignore_missing_imports = true
-
