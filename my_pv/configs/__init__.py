@@ -68,7 +68,7 @@ async def read_config(serial_number: str) -> dict | None:
     for config_file in config_files:
         try:
             text = await asyncio.get_running_loop().run_in_executor(
-                None, importlib.resources.read_text, "mypv.configs", config_file
+                None, importlib.resources.read_text, "my_pv.configs", config_file
             )
 
             if text is not None and len(text) > 0:

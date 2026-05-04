@@ -20,7 +20,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 
-from mypv.exceptions import MyPVConnectionError
+from my_pv.exceptions import MyPVConnectionError
 
 from .configs import read_config
 from .connection import (

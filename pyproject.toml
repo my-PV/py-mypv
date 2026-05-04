@@ -3,10 +3,7 @@ requires = ["hatchling>=1.29", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "mypv/_version.py"
-
-[tool.hatch.build.targets.sdist]
-packages = [ "mypv" ]
+version-file = "my_pv/_version.py"
 
 [tool.hatch.version]
 source = "vcs"
@@ -41,10 +38,10 @@ Issues = "https://github.com/my-PV/py-mypv/issues"
 [tool.isort]
 # https://github.com/PyCQA/isort/wiki/isort-Settings
 profile = "black"
-skip = "mypv/_version.py"
+skip = "my_pv/_version.py"
 
 [tool.black]
-exclude = 'mypv/_version.py'
+exclude = 'my_pv/_version.py'
 
 [tool.pylint]
 ignore = "_version.py"
@@ -52,7 +49,7 @@ recursive = "y"
 
 [tool.mypy]
 python_version = "3.14"
-mypy_path = "mypv"
+mypy_path = "my_pv"
 
 [[tool.mypy.overrides]]
 module = ["*._version"]

@@ -27,7 +27,7 @@ from urllib.parse import urlencode, urlunsplit
 from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientConnectionError, ConnectionTimeoutError
 
-from mypv.exceptions import MyPVAuthenticationError, MyPVConnectionError
+from my_pv.exceptions import MyPVAuthenticationError, MyPVConnectionError
 
 logger = logging.getLogger(__name__)
 
