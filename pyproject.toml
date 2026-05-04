@@ -9,7 +9,7 @@ version-file = "mypv/_version.py"
 source = "vcs"
 
 [project]
-name = "mypv"
+name = "my-PV"
 dynamic = ["version"]
 license = {text = "Apache-2.0"}
 authors = [
