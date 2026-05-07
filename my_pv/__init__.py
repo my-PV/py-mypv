@@ -258,7 +258,7 @@ class MyPVDevice(ABC):
 
         return False
 
-    def get_setup_configurations(self) -> dict:
+    def get_setup_configurations(self) -> dict[str, [str, Any]]:
         """Gets the configuration of the available setup parameters."""
         setup_keys = self._setup_values.keys()
         return {
@@ -275,7 +275,7 @@ class MyPVDevice(ABC):
             and val.get("advanced", False) in [False, self.advanced]
         }
 
-    def get_setup_configuration(self, key: str) -> dict | None:
+    def get_setup_configuration(self, key: str) -> dict[str, Any] | None:
         return self.get_setup_configurations().get(key)
 
     def get_setup_value(self, key: str) -> bool | float | int | str | None:
@@ -337,7 +337,7 @@ class MyPVDevice(ABC):
 
         return False
 
-    def get_data_configurations(self) -> dict:
+    def get_data_configurations(self) -> dict[str, [str, Any]]:
         """Gets the configuration of the available device data."""
         data_keys = self._data_values.keys()
         data_configurations = {
@@ -360,7 +360,7 @@ class MyPVDevice(ABC):
 
         return data_configurations
 
-    def get_data_configuration(self, key: str) -> dict | None:
+    def get_data_configuration(self, key: str) -> dict[str, Any] | None:
         return self.get_data_configurations().get(key)
 
     def get_data_value(self, key: str) -> bool | float | int | str | None:
@@ -440,7 +440,7 @@ class MyPVDevice(ABC):
             "commands"
         ][command].get("advanced", False) in [False, self.advanced]
 
-    def get_command_configurations(self) -> dict:
+    def get_command_configurations(self) -> dict[str, [str, Any]]:
         """Gets the configuration of the available commands supported by the device."""
         return {
             key: val
@@ -448,7 +448,7 @@ class MyPVDevice(ABC):
             if val.get("advanced", False) in [False, self.advanced]
         }
 
-    def get_command_configuration(self, command: str) -> dict | None:
+    def get_command_configuration(self, command: str) -> dict[str, Any] | None:
         return self.get_command_configurations().get(command)
 
     async def send_command(
