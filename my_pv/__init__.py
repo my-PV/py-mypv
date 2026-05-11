@@ -487,7 +487,7 @@ class MyPVDevice(ABC):
 
     @property
     def target_temperature(self) -> float | None:
-        return self.get_data_value("ww1target")
+        return self.get_setup_value("ww1target")
 
     async def set_target_temperature(self, temperature: float) -> bool:
         return await self.set_setup_value("ww1target", temperature)
