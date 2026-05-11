@@ -482,6 +482,17 @@ class MyPVDevice(ABC):
         return await self._connection.send_command(command, value)
 
     @property
+    def current_temperature(self) -> float:
+        return self.get_data_value("temp1")
+
+    @property
+    def target_temperature(self) -> float:
+        return self.get_data_value("ww1target")
+
+    async def set_target_temperature(self, temperature: float) -> bool:
+        return await self.set_setup_value("ww1target", temperature)
+
+    @property
     def is_on(self) -> bool:
         return self.get_setup_value("devmode")
 
