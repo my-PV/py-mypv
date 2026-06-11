@@ -99,9 +99,6 @@ class MyPVHTTPConnection(MyPVConnection):
     _data_url: str | None = None
 
     _mypv_dev = None
-    # _serial_number: str | None = None
-    # _model: str | None = None
-    # _firmware_version: str | None = None
 
     def __init__(self, host: str) -> None:
         assert host is not None
@@ -134,6 +131,7 @@ class MyPVHTTPConnection(MyPVConnection):
         )
 
         session = None
+        success = False
         try:
             session = ClientSession()
             response = await session.get(mypv_dev_url, ssl=self._SSL_CHECK)
@@ -142,35 +140,27 @@ class MyPVHTTPConnection(MyPVConnection):
             if response.content_type == "application/json":
                 response_json = json.loads(response_body)
 
-            if response.status == 401:
-                await session.close()
-                raise MyPVAuthenticationError(response_json.get("msg"))
-            if response.status != 200:
+            if response.status == 200:
+                self._mypv_dev = response_json
+        
+                if await self._auth(session):
+                    self._session = session
+        
+                    self._setup_url = urlunsplit(
+                        [self._PROTOCOL, self._host, "/setup.jsn", None, None]
+                    )
+                    self._data_url = urlunsplit(
+                        [self._PROTOCOL, self._host, "/data.jsn", None, None]
+                    )
+        
+                    success = True
+            else:
                 logger.error(
                     "Unexpected response %i %s: %s",
                     response.status,
                     response.reason,
                     response_body,
                 )
-                await session.close()
-                return False
-
-            self._mypv_dev = response_json
-            # self._serial_number = response_json.get("sn")
-            # self._model = response_json.get("device")
-            # self._firmware_version = response_json.get("fwversion")
-
-            if await self._auth(session):
-                self._session = session
-
-                self._setup_url = urlunsplit(
-                    [self._PROTOCOL, self._host, "/setup.jsn", None, None]
-                )
-                self._data_url = urlunsplit(
-                    [self._PROTOCOL, self._host, "/data.jsn", None, None]
-                )
-
-                return True
         except json.JSONDecodeError:
             logger.error(
                 "Invallid JSON for response status %i: %s",
@@ -179,12 +169,12 @@ class MyPVHTTPConnection(MyPVConnection):
             )
         except ClientConnectionError as exc:
             logger.debug(exc)
+        finally:
+            # Close the connection if we failed to connect.
+            if not success and session:
+                await session.close()
 
-        # Close the connection if we failed to connect.
-        if session:
-            await session.close()
-
-        return False
+        return success
 
     def is_open(self) -> bool:
         if self._session is None:
