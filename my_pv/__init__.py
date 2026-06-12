@@ -19,6 +19,7 @@ The my-PV library.
 import logging
 import re
 from abc import ABC, abstractmethod
+from typing import Any
 
 from my_pv.exceptions import MyPVConnectionError
 
@@ -537,11 +538,11 @@ class MyPVLocalDevice(MyPVDevice):
             if not await connection.open():
                 return False
         finally:
-            if connection._mypv_dev:
-                self._serial_number = connection._mypv_dev.get("sn")
+            if connection.mypv_dev:
+                self._serial_number = connection.mypv_dev.get("sn")
                 await self._read_config()
                 self._model = self._device_config.get("name")
-                self._firmware_version = connection._mypv_dev.get("fwversion")
+                self._firmware_version = connection.mypv_dev.get("fwversion")
 
         self._connection = connection
 

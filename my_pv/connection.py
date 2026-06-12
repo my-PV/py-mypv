@@ -16,6 +16,7 @@
 This file defines the different connection methods the my-PV library supports.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -24,8 +25,8 @@ from asyncio.base_events import ssl
 from typing import Final
 from urllib.parse import urlencode, urlunsplit
 
-from aiohttp import ClientSession
-from aiohttp.client_exceptions import ClientConnectionError, ConnectionTimeoutError
+from aiohttp import ClientSession, ClientTimeout
+from aiohttp.client_exceptions import ClientConnectionError
 
 from my_pv.exceptions import MyPVAuthenticationError, MyPVConnectionError
 
@@ -117,8 +118,6 @@ class MyPVHTTPConnection(MyPVConnection):
         except ssl.SSLCertVerificationError as exc:
             # Connection is redirected to SSL, authentication is needed.
             raise MyPVAuthenticationError() from exc
-        except ClientConnectionError as exc:
-            logger.debug(exc)
 
         return False
 
@@ -133,45 +132,45 @@ class MyPVHTTPConnection(MyPVConnection):
         session = None
         success = False
         try:
-            session = ClientSession()
+            session = ClientSession(timeout=ClientTimeout(total=5))
             response = await session.get(mypv_dev_url, ssl=self._SSL_CHECK)
             response_body = await response.text()
             response_json = {}
             if response.content_type == "application/json":
                 response_json = json.loads(response_body)
 
-            if response.status == 200:
-                self._mypv_dev = response_json
-        
-                if await self._auth(session):
-                    self._session = session
-        
-                    self._setup_url = urlunsplit(
-                        [self._PROTOCOL, self._host, "/setup.jsn", None, None]
-                    )
-                    self._data_url = urlunsplit(
-                        [self._PROTOCOL, self._host, "/data.jsn", None, None]
-                    )
-        
-                    success = True
-            else:
+            if response.status != 200:
                 logger.error(
                     "Unexpected response %i %s: %s",
                     response.status,
                     response.reason,
                     response_body,
                 )
+            else:
+                self._mypv_dev = response_json
+
+                if await self._auth(session):
+                    self._setup_url = urlunsplit(
+                        [self._PROTOCOL, self._host, "/setup.jsn", None, None]
+                    )
+                    self._data_url = urlunsplit(
+                        [self._PROTOCOL, self._host, "/data.jsn", None, None]
+                    )
+
+                    success = True
         except json.JSONDecodeError:
             logger.error(
                 "Invallid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
-        except ClientConnectionError as exc:
+        except (ClientConnectionError, asyncio.TimeoutError) as exc:
             logger.debug(exc)
         finally:
-            # Close the connection if we failed to connect.
-            if not success and session:
+            if success:
+                self._session = session
+            elif session:
+                # Close the connection if we failed to connect.
                 await session.close()
 
         return success
@@ -190,7 +189,7 @@ class MyPVHTTPConnection(MyPVConnection):
         return True
 
     async def _get(self, url) -> dict:
-        if (self._session is None or self._session.closed) and not await self.open():
+        if not self.is_open() and not await self.open():
             raise MyPVConnectionError()
 
         try:
@@ -225,11 +224,13 @@ class MyPVHTTPConnection(MyPVConnection):
                 response_body,
             )
             raise MyPVConnectionError() from exc
-        except (ClientConnectionError, ConnectionTimeoutError) as exc:
+        except (ClientConnectionError, asyncio.TimeoutError) as exc:
+            await self.close()
             raise MyPVConnectionError() from exc
 
         return {}
 
+    @property
     def mypv_dev(self) -> dict | None:
         return self._mypv_dev
 
@@ -274,55 +275,31 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         assert host is not None
         assert password is not None
 
-        self._host = host
+        super().__init__(host)
+
         self._password = password
 
     async def _auth(self, session: ClientSession) -> bool:
-        try:
-            auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
-            data = {"pw": self._password}
-            response = await session.post(auth_url, data=data, ssl=self._SSL_CHECK)
-            if response.status == 405:
-                # Older beta firmware expects a get request
-                # ToDo Remove when older beta firmware is phased out
-                query = urlencode(data)
-                auth_url = urlunsplit(
-                    [self._PROTOCOL, self._host, "/auth.jsn", query, None]
-                )
-                response = await session.get(auth_url, ssl=self._SSL_CHECK)
+        auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
+        data = {"pw": self._password}
+        response = await session.post(auth_url, data=data, ssl=self._SSL_CHECK)
+        response_body = await response.text()
+        response_json = {}
+        if response.content_type == "application/json":
+            response_json = json.loads(response_body)
 
-            response_body = await response.text()
-            response_json = {}
-            if response.content_type == "application/json":
-                response_json = json.loads(response_body)
+        if response_json.get("auth", 0) == 1:
+            return True
 
-            if response_json.get("auth", 0) == 1:
-                return True
-
-            # Authentication failed.
-            if response_json.get("default", 0) == 1:
-                raise MyPVAuthenticationError("Use device key")
-            else:
-                raise MyPVAuthenticationError("Use password")
-        except ClientConnectionError as exc:
-            logger.debug(exc)
-
-        return False
+        # Authentication failed.
+        raise MyPVAuthenticationError()
 
     async def _post(self, url, data) -> dict:
-        if (self._session is None or self._session.closed) and not await self.open():
+        if not self.is_open() and not await self.open():
             raise MyPVConnectionError()
 
         try:
             response = await self._session.post(url, data=data, ssl=self._SSL_CHECK)
-            if response.status == 405:
-                # Older beta firmware expects a get request
-                # ToDo Remove when older beta firmware is phased out
-                query = urlencode(data)
-                auth_url = urlunsplit(
-                    [self._PROTOCOL, self._host, "/setup.jsn", query, None]
-                )
-                response = await self._session.get(auth_url, ssl=self._SSL_CHECK)
             response_body = await response.text()
 
             if response.status == 200 and response.content_type == "application/json":
@@ -336,12 +313,13 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
             )
         except json.JSONDecodeError as exc:
             logger.error(
-                "Invallid JSON for response status %i %s: %s",
+                "Invallid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
             raise MyPVConnectionError() from exc
-        except (ClientConnectionError, ConnectionTimeoutError) as exc:
+        except (ClientConnectionError, asyncio.TimeoutError) as exc:
+            await self.close()
             raise MyPVConnectionError() from exc
 
         return {}
@@ -412,6 +390,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         }
 
         session = None
+        success = False
         try:
             session = ClientSession(headers=headers)
 
@@ -420,11 +399,8 @@ class MyPVCloudConnection(MyPVHTTPConnection):
             response_json = json.loads(response_body)
 
             if response.status == 401:
-                await session.close()
                 raise MyPVAuthenticationError(response_json.get("msg"))
-            if response.status == 200 and not response_json.get("isOnline"):
-                await session.close()
-                return False
+
             if response.status != 200:
                 logger.error(
                     "Unexpected response %i %s: %s",
@@ -432,68 +408,73 @@ class MyPVCloudConnection(MyPVHTTPConnection):
                     response.reason,
                     response_body,
                 )
-                await session.close()
-                return False
+            elif response_json.get("isOnline"):
+                self._setup_url = urlunsplit(
+                    [
+                        self._PROTOCOL,
+                        self._host,
+                        f"/api/v1/device/{self._serial_number}/setup",
+                        None,
+                        None,
+                    ]
+                )
+                self._data_url = urlunsplit(
+                    [
+                        self._PROTOCOL,
+                        self._host,
+                        f"/api/v1/device/{self._serial_number}/data",
+                        None,
+                        None,
+                    ]
+                )
+                self._soc_url = urlunsplit(
+                    [
+                        self._PROTOCOL,
+                        self._host,
+                        f"/api/v1/device/{self._serial_number}/data/soc",
+                        None,
+                        None,
+                    ]
+                )
+                query = urlencode(
+                    {
+                        "beginDate": "2020-01-01",
+                        "endDate": "2026-03-23",
+                        "timezone": time.tzname[1],
+                        "interval": "1h",
+                    }
+                )
+                # ?beginDate=2024-10-27&endDate=2024-10-29&timezone=Europe%2FVienna&interval=1h
+                self._logdata_url = urlunsplit(
+                    [
+                        self._PROTOCOL,
+                        self._host,
+                        f"/api/v1/device/{self._serial_number}/logdata",
+                        query,
+                        None,
+                    ]
+                )
 
-            self._session = session
-            self._setup_url = urlunsplit(
-                [
-                    self._PROTOCOL,
-                    self._host,
-                    f"/api/v1/device/{self._serial_number}/setup",
-                    None,
-                    None,
-                ]
+                success = True
+        except json.JSONDecodeError:
+            logger.error(
+                "Invallid JSON for response status %i: %s",
+                response.status,
+                response_body,
             )
-            self._data_url = urlunsplit(
-                [
-                    self._PROTOCOL,
-                    self._host,
-                    f"/api/v1/device/{self._serial_number}/data",
-                    None,
-                    None,
-                ]
-            )
-            self._soc_url = urlunsplit(
-                [
-                    self._PROTOCOL,
-                    self._host,
-                    f"/api/v1/device/{self._serial_number}/data/soc",
-                    None,
-                    None,
-                ]
-            )
-            query = urlencode(
-                {
-                    "beginDate": "2020-01-01",
-                    "endDate": "2026-03-23",
-                    "timezone": time.tzname[1],
-                    "interval": "1h",
-                }
-            )
-            # ?beginDate=2024-10-27&endDate=2024-10-29&timezone=Europe%2FVienna&interval=1h
-            self._logdata_url = urlunsplit(
-                [
-                    self._PROTOCOL,
-                    self._host,
-                    f"/api/v1/device/{self._serial_number}/logdata",
-                    query,
-                    None,
-                ]
-            )
-
-            return True
-        except ClientConnectionError as exc:
+        except (ClientConnectionError, asyncio.TimeoutError) as exc:
             logger.debug(exc)
+        finally:
+            if success:
+                self._session = session
+            elif session:
+                # Close the connection if we failed to connect.
+                await session.close()
 
-        # Close the connection if we failed to connect.
-        if session:
-            await session.close()
-
-        return False
+        return success
 
     async def _put(self, url, body) -> bool:
-        if (self._session is None or self._session.closed) and not await self.open():
+        if not self.is_open() and not await self.open():
             raise MyPVConnectionError()
 
         try:
@@ -526,11 +507,13 @@ class MyPVCloudConnection(MyPVHTTPConnection):
                 response_body,
             )
             raise MyPVConnectionError() from exc
-        except (ClientConnectionError, ConnectionTimeoutError) as exc:
+        except (ClientConnectionError, asyncio.TimeoutError) as exc:
+            await self.close()
             raise MyPVConnectionError() from exc
 
         return False
 
+    @property
     def mypv_dev(self) -> dict | None:
         raise NotImplementedError
 
