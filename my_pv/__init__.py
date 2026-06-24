@@ -92,16 +92,6 @@ class MyPVDevice(ABC):
         self._data_values = {}
         self._device_config = {}
 
-    async def async_init(self):
-        pass
-
-    async def _async_init(self):
-        await self.async_init()
-        return self
-
-    def __await__(self):
-        return self._async_init().__await__()
-
     def _init_device(self, setup_values: dict) -> str:
         self._hardware_version = setup_values.get("hwvers")
         self._firmware_version = setup_values.get("fwversion")
@@ -585,11 +575,6 @@ class MyPVCloudDevice(MyPVDevice):
         self._serial_number = serial_number
         self._api_token = api_token
 
-    async def async_init(self):
-        await super().async_init()
-        await self._read_config()
-        self._model = self._device_config.get("name")
-
     async def connect(self) -> bool:
         await self.disconnect()
 
@@ -597,8 +582,12 @@ class MyPVCloudDevice(MyPVDevice):
             self._serial_number, self._api_token, host=self._host
         )
 
-        if not await connection.open():
-            return False
+        try:
+            if not await connection.open():
+                return False
+        finally:
+            await self._read_config()
+            self._model = self._device_config.get("name")
 
         self._connection = connection
 
