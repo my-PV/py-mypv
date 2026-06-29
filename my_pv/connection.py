@@ -111,15 +111,11 @@ class MyPVHTTPConnection(MyPVConnection):
         try:
             auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
             response = await session.get(auth_url, ssl=True)
-
-            if response.status == 404:
-                # Firmware doesn't support authentication.
-                return True
         except ssl.SSLCertVerificationError as exc:
             # Connection is redirected to SSL, authentication is needed.
             raise MyPVAuthenticationError() from exc
 
-        return False
+        return True
 
     async def open(self) -> bool:
         # Close the existing connection if still open
