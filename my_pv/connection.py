@@ -109,8 +109,7 @@ class MyPVHTTPConnection(MyPVConnection):
     async def _auth(self, session: ClientSession) -> bool:
         """The older HTTP only firmware doesn't yet support authentication."""
         try:
-            auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
-            response = await session.get(auth_url, ssl=True)
+            urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
         except ssl.SSLCertVerificationError as exc:
             # Connection is redirected to SSL, authentication is needed.
             raise MyPVAuthenticationError() from exc
