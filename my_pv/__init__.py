@@ -275,7 +275,7 @@ class MyPVDevice(ABC):
             raise MyPVConnectionError()
 
         if not self.supports_configuration(key):
-            raise MyPVNotSupportedError
+            raise MyPVNotSupportedError(key)
 
         # Disable all but Device Mode when Device Mode is Off
         if key != "devmode" and self._setup_values.get("devmode") == 0:
