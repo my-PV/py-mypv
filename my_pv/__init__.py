@@ -19,6 +19,7 @@ The my-PV library.
 import logging
 import re
 from abc import ABC, abstractmethod
+from enum import StrEnum
 from typing import Any
 
 from my_pv.exceptions import MyPVConnectionError
@@ -61,6 +62,13 @@ _BOOST_SETUP_KEYS = [
     "bstwd7",
     "ww1boost",
 ]
+
+
+class MyPVDeviceMode(StrEnum):
+    HOT_WATER = "boiler"
+    SPACE_HEATER = "space_heater"
+    HEAT_PUMP = "heat_pump"
+    PWM = "pwm"
 
 
 class MyPVDevice(ABC):
@@ -471,6 +479,22 @@ class MyPVDevice(ABC):
                 value = 1
 
         return await self._connection.send_command(command, value)
+
+    def supports_mode(self, mode: MyPVDeviceMode) -> bool:
+        if not self.supports_configuration("mainmode"):
+            return mode == MyPVDeviceMode.HOT_WATER
+
+        mainmode = self.get_setup_value("mainmode")
+        if mode == MyPVDeviceMode.HOT_WATER:
+            return mainmode in (1, 2, 3, 4, 5, 7)
+        if mode == MyPVDeviceMode.SPACE_HEATER:
+            return mainmode in (5, 6)
+        if mode == MyPVDeviceMode.HEAT_PUMP:
+            return mainmode in (4)
+        if mode == MyPVDeviceMode.PWM:
+            return mainmode in (7)
+
+        return False
 
     @property
     def current_temperature(self) -> float | None:
