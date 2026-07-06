@@ -64,10 +64,10 @@ _BOOST_SETUP_KEYS = [
 ]
 
 
-class MyPVDeviceMode(StrEnum):
+class MyPVDeviceMainMode(StrEnum):
     HOT_WATER = "boiler"
-    SPACE_HEATER = "space_heater"
-    HEAT_PUMP = "heat_pump"
+    SPACE_HEATING = "space_heating"
+    HEATPUMP = "heatpump"
     PWM = "pwm"
 
 
@@ -92,6 +92,8 @@ class MyPVDevice(ABC):
     _data_values: dict
     _device_config: dict
 
+    _main_modes: tuple = ()
+
     def __init__(self, advanced: bool = False):
 
         self.advanced = advanced
@@ -100,7 +102,7 @@ class MyPVDevice(ABC):
         self._data_values = {}
         self._device_config = {}
 
-    def _init_device(self, setup_values: dict) -> str:
+    def _init_device(self, setup_values: dict) -> None:
         self._hardware_version = setup_values.get("hwvers")
         self._firmware_version = setup_values.get("fwversion")
 
@@ -111,6 +113,33 @@ class MyPVDevice(ABC):
             mac_address = re.sub("[^0-9a-f]", "", mac_address)
             mac_address = ":".join(mac_address[i : i + 2] for i in range(0, 12, 2))
         self._mac_address = mac_address
+
+        match setup_values.get("mainmode"):
+            case 1:
+                self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
+            case 2:
+                self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
+            case 3:
+                self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
+            case 4:
+                self._main_modes = (
+                    MyPVDeviceMainMode.HOT_WATER,
+                    MyPVDeviceMainMode.HEATPUMP,
+                )
+            case 5:
+                self._main_modes = (
+                    MyPVDeviceMainMode.HOT_WATER,
+                    MyPVDeviceMainMode.SPACE_HEATING,
+                )
+            case 6:
+                self._main_modes = (MyPVDeviceMainMode.SPACE_HEATING,)
+            case 7:
+                self._main_modes = (
+                    MyPVDeviceMainMode.HOT_WATER,
+                    MyPVDeviceMainMode.PWM,
+                )
+            case _:
+                self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
 
         # Boost mode on the AC ELWA 2 is special because it depends on mainmode.
         # If mainmode is 1 only option 4 is possible.
@@ -480,21 +509,9 @@ class MyPVDevice(ABC):
 
         return await self._connection.send_command(command, value)
 
-    def supports_mode(self, mode: MyPVDeviceMode) -> bool:
-        if not self.supports_configuration("mainmode"):
-            return mode == MyPVDeviceMode.HOT_WATER
-
-        mainmode = self.get_setup_value("mainmode")
-        if mode == MyPVDeviceMode.HOT_WATER:
-            return mainmode in (1, 2, 3, 4, 5, 7)
-        if mode == MyPVDeviceMode.SPACE_HEATER:
-            return mainmode in (5, 6)
-        if mode == MyPVDeviceMode.HEAT_PUMP:
-            return mainmode in (4)
-        if mode == MyPVDeviceMode.PWM:
-            return mainmode in (7)
-
-        return False
+    def supports_main_mode(self, mode: MyPVDeviceMainMode) -> bool:
+        """Returns True if device supports the given main device mode."""
+        return mode in self._main_modes
 
     @property
     def current_temperature(self) -> float | None:
