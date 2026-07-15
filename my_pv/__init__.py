@@ -599,6 +599,7 @@ class MyPVLocalDevice(MyPVDevice):
     
             self._init_device(setup_values)
         except MyPVConnectionError:
+            await connection.close()
             return False
 
         self._connection = connection
@@ -659,6 +660,7 @@ class MyPVCloudDevice(MyPVDevice):
     
             self._init_device(setup_values)
         except MyPVConnectionError:
+            await connection.close()
             return False
 
         self._connection = connection
