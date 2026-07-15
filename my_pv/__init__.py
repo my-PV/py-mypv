@@ -590,12 +590,17 @@ class MyPVLocalDevice(MyPVDevice):
                 self._model = self._device_config["name"]
                 self._firmware_version = connection.mypv_dev["fwversion"]
 
+        try:
+            # Get the device setup
+            setup_values = await connection.fetch_setup()
+            if not setup_values:
+                return False
+    
+            self._init_device(setup_values)
+        except MyPVConnectionError:
+            return False
+
         self._connection = connection
-
-        # Get the device setup
-        setup_values = await connection.fetch_setup()
-
-        self._init_device(setup_values)
 
         if not self._setup_uri and setup_values.get("cloudmode"):
             self._setup_uri = CLOUD_FRONTEND
@@ -645,12 +650,17 @@ class MyPVCloudDevice(MyPVDevice):
             await self._read_config()
             self._model = self._device_config["name"]
 
+        try:
+            # Get the device setup
+            setup_values = await connection.fetch_setup()
+            if not setup_values:
+                return False
+    
+            self._init_device(setup_values)
+        except MyPVConnectionError:
+            return False
+
         self._connection = connection
-
-        # Get the device setup
-        setup_values = await self._connection.fetch_setup()
-
-        self._init_device(setup_values)
 
         await self._read_config()
 
