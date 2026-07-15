@@ -80,9 +80,9 @@ class MyPVDevice(ABC):
 
     _serial_number: str
     _model: str
-    _hardware_version: str
-    _firmware_version: str
-    _mac_address: str
+    _hardware_version: str | None
+    _firmware_version: str | None
+    _mac_address: str | None
 
     _connection: MyPVConnection | None = None
     _uri: str | None = None
@@ -103,15 +103,16 @@ class MyPVDevice(ABC):
         self._device_config = {}
 
     def _init_device(self, setup_values: dict[str, Any]) -> None:
-        self._hardware_version = setup_values["hwvers"]
-        self._firmware_version = setup_values["fwversion"]
+        self._hardware_version = setup_values.get("hwvers")
+        self._firmware_version = setup_values.get("fwversion")
 
         # Format MAC address
-        mac_address = setup_values["macadr"]
-        mac_address = mac_address.lower()
-        mac_address = re.sub("[^0-9a-f]", "", mac_address)
-        mac_address = ":".join(mac_address[i : i + 2] for i in range(0, 12, 2))
-        self._mac_address = mac_address
+        mac_address = setup_values.get("macadr")
+        if mac_address:
+            mac_address = mac_address.lower()
+            mac_address = re.sub("[^0-9a-f]", "", mac_address)
+            mac_address = ":".join(mac_address[i : i + 2] for i in range(0, 12, 2))
+            self._mac_address = mac_address
 
         match setup_values.get("mainmode"):
             case 1:
@@ -201,17 +202,17 @@ class MyPVDevice(ABC):
         return self._model
 
     @property
-    def hardware_version(self) -> str:
+    def hardware_version(self) -> str | None:
         """The device hardware version."""
         return self._hardware_version
 
     @property
-    def firmware_version(self) -> str:
+    def firmware_version(self) -> str | None:
         """The device firmware version."""
         return self._firmware_version
 
     @property
-    def mac_address(self) -> str:
+    def mac_address(self) -> str | None:
         """The device MAC address."""
         return self._mac_address
 
@@ -588,7 +589,7 @@ class MyPVLocalDevice(MyPVDevice):
                 self._serial_number = connection.mypv_dev["sn"]
                 await self._read_config()
                 self._model = self._device_config["name"]
-                self._firmware_version = connection.mypv_dev["fwversion"]
+                self._firmware_version = connection.mypv_dev.get("fwversion")
 
         try:
             # Get the device setup
