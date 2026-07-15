@@ -19,10 +19,10 @@ This file defines the different connection methods the my-PV library supports.
 import asyncio
 import json
 import logging
+import ssl
 import time
 from abc import ABC, abstractmethod
-from asyncio.base_events import ssl
-from typing import Final
+from typing import Any, Final
 from urllib.parse import urlencode, urlunsplit
 
 from aiohttp import ClientSession, ClientTimeout
@@ -59,22 +59,22 @@ class MyPVConnection(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def fetch_setup(self) -> dict:
+    async def fetch_setup(self) -> dict[str, Any] | None:
         """Retrieves the device setup."""
         raise NotImplementedError
 
     @abstractmethod
-    async def fetch_data(self) -> dict:
+    async def fetch_data(self) -> dict[str, Any] | None:
         """Retrieves the device data."""
         raise NotImplementedError
 
     @abstractmethod
-    async def set_setup_value(self, key: str, value: bool | float | int | str) -> bool:
+    async def set_setup_value(self, key: str, value: Any) -> bool:
         """Sets the setup value for the given key."""
         raise NotImplementedError
 
     @abstractmethod
-    async def send_command(self, key: str, value: bool | float | int | str) -> bool:
+    async def send_command(self, key: str, value: Any) -> bool:
         """Sends a command to the device."""
         raise NotImplementedError
 
@@ -184,8 +184,8 @@ class MyPVHTTPConnection(MyPVConnection):
 
         return True
 
-    async def _get(self, url) -> dict:
-        if not self.is_open() and not await self.open():
+    async def _get(self, url: str) -> dict[str, Any]:
+        if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError()
 
         try:
@@ -227,17 +227,23 @@ class MyPVHTTPConnection(MyPVConnection):
         return {}
 
     @property
-    def mypv_dev(self) -> dict | None:
+    def mypv_dev(self) -> dict[str, Any] | None:
         return self._mypv_dev
 
-    async def fetch_setup(self) -> dict:
+    async def fetch_setup(self) -> dict[str, Any] | None:
+        if not self._setup_url:
+            return None
+
         return await self._get(self._setup_url)
 
-    async def fetch_data(self) -> dict:
+    async def fetch_data(self) -> dict[str, Any] | None:
+        if not self._data_url:
+            return None
+
         data = await self._get(self._data_url)
         return {key.lower(): value for key, value in data.items()}
 
-    async def set_setup_value(self, key: str, value: bool | float | int | str) -> bool:
+    async def set_setup_value(self, key: str, value: Any) -> bool:
         query = urlencode({key: value})
         url = urlunsplit([self._PROTOCOL, self._host, "/setup.jsn", query, None])
         logger.debug("Set setup parameter url: %s", url)
@@ -245,7 +251,7 @@ class MyPVHTTPConnection(MyPVConnection):
         response = await self._get(url)
         return response.get(key) == value
 
-    async def send_command(self, key: str, value: bool | float | int | str) -> bool:
+    async def send_command(self, key: str, value: Any) -> bool:
         query = urlencode({key: value})
         url = urlunsplit([self._PROTOCOL, self._host, "/setup.jsn", query, None])
         logger.debug("Send command parameter url: %s", url)
@@ -290,8 +296,8 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         # Authentication failed.
         raise MyPVAuthenticationError()
 
-    async def _post(self, url, data) -> dict:
-        if not self.is_open() and not await self.open():
+    async def _post(self, url: str, data: dict[str, Any]) -> dict[str, Any]:
+        if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError()
 
         try:
@@ -320,7 +326,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
 
         return {}
 
-    async def set_setup_value(self, key: str, value: bool | float | int | str) -> bool:
+    async def set_setup_value(self, key: str, value: Any) -> bool:
         url = urlunsplit([self._PROTOCOL, self._host, "/setup.jsn", None, None])
         logger.debug("Set setup parameter url: %s", url)
 
@@ -329,7 +335,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         response = await self._post(url, data)
         return response.get(key) == value
 
-    async def send_command(self, key: str, value: bool | float | int | str) -> bool:
+    async def send_command(self, key: str, value: Any) -> bool:
         url = urlunsplit([self._PROTOCOL, self._host, "/setup.jsn", None, None])
         logger.debug("Send command parameter url: %s", url)
 
@@ -469,8 +475,8 @@ class MyPVCloudConnection(MyPVHTTPConnection):
 
         return success
 
-    async def _put(self, url, body) -> bool:
-        if not self.is_open() and not await self.open():
+    async def _put(self, url: str, body: str) -> bool:
+        if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError()
 
         try:
@@ -510,26 +516,38 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         return False
 
     @property
-    def mypv_dev(self) -> dict | None:
+    def mypv_dev(self) -> dict[str, Any] | None:
         raise NotImplementedError
 
-    async def fetch_setup(self) -> dict:
-        return (await super().fetch_setup()).get("setup", {})
+    async def fetch_setup(self) -> dict[str, Any] | None:
+        setup = await super().fetch_setup()
+        if not setup:
+            return None
+        return setup.get("setup", {})
 
-    async def fetch_data(self) -> dict:
+    async def fetch_data(self) -> dict[str, Any] | None:
         data = await super().fetch_data()
-        soc = await self._get(self._soc_url)
-        if soc and len(soc) == 2:
-            data["soc"] = soc["percentage"]
+        if not data:
+            return None
+        if self._soc_url:
+            soc = await self._get(self._soc_url)
+            if soc and len(soc) == 2:
+                data["soc"] = soc["percentage"]
 
         return data
 
-    async def set_setup_value(self, key: str, value: bool | float | int | str) -> bool:
+    async def set_setup_value(self, key: str, value: Any) -> bool:
+        if not self._setup_url:
+            return False
+
         body = json.dumps({key: value})
 
         return await self._put(self._setup_url, body)
 
-    async def send_command(self, key: str, value: bool | float | int | str) -> bool:
+    async def send_command(self, key: str, value: Any) -> bool:
+        if not self._setup_url:
+            return False
+
         body = json.dumps({key: value})
 
         return await self._put(self._setup_url, body)

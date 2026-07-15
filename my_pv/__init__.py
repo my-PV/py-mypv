@@ -78,21 +78,21 @@ class MyPVDevice(ABC):
 
     advanced: bool = False
 
-    _serial_number: str | None = None
-    _model: str | None = None
-    _hardware_version: str | None = None
-    _firmware_version: str | None = None
-    _mac_address: str | None = None
+    _serial_number: str
+    _model: str
+    _hardware_version: str
+    _firmware_version: str
+    _mac_address: str
 
     _connection: MyPVConnection | None = None
     _uri: str | None = None
     _setup_uri: str | None = None
 
-    _setup_values: dict
-    _data_values: dict
-    _device_config: dict
+    _setup_values: dict[str, Any]
+    _data_values: dict[str, Any]
+    _device_config: dict[str, Any]
 
-    _main_modes: tuple = ()
+    _main_modes: tuple[MyPVDeviceMainMode, ...] | None = None
 
     def __init__(self, advanced: bool = False):
 
@@ -102,16 +102,15 @@ class MyPVDevice(ABC):
         self._data_values = {}
         self._device_config = {}
 
-    def _init_device(self, setup_values: dict) -> None:
-        self._hardware_version = setup_values.get("hwvers")
-        self._firmware_version = setup_values.get("fwversion")
+    def _init_device(self, setup_values: dict[str, Any]) -> None:
+        self._hardware_version = setup_values["hwvers"]
+        self._firmware_version = setup_values["fwversion"]
 
         # Format MAC address
-        mac_address = setup_values.get("macadr")
-        if mac_address:
-            mac_address = mac_address.lower()
-            mac_address = re.sub("[^0-9a-f]", "", mac_address)
-            mac_address = ":".join(mac_address[i : i + 2] for i in range(0, 12, 2))
+        mac_address = setup_values["macadr"]
+        mac_address = mac_address.lower()
+        mac_address = re.sub("[^0-9a-f]", "", mac_address)
+        mac_address = ":".join(mac_address[i : i + 2] for i in range(0, 12, 2))
         self._mac_address = mac_address
 
         match setup_values.get("mainmode"):
@@ -148,7 +147,7 @@ class MyPVDevice(ABC):
             self.serial_number.startswith(("160150", "160151", "160152"))
             and setup_values.get("mainmode") == 1
         ):
-            del self._device_config.get("setup").get("bstmode").get("options", {})["5"]
+            del self._device_config["setup"]["bstmode"].get("options", {})["5"]
 
     @abstractmethod
     async def connect(self) -> bool:
@@ -162,7 +161,9 @@ class MyPVDevice(ABC):
     @property
     def connected(self) -> bool:
         """True when connection is established else False."""
-        return self._connection and self._connection.is_open()
+        if self._connection:
+            return self._connection.is_open()
+        return False
 
     @property
     def setup_uri(self) -> str | None:
@@ -210,7 +211,7 @@ class MyPVDevice(ABC):
         return self._firmware_version
 
     @property
-    def mac_address(self) -> str | None:
+    def mac_address(self) -> str:
         """The device MAC address."""
         return self._mac_address
 
@@ -223,7 +224,12 @@ class MyPVDevice(ABC):
 
         Returns True when successful else False.
         """
+        if not self._connection or not self.connected:
+            return False
+
         setup_values = await self._connection.fetch_setup()
+        if not setup_values:
+            return False
         setup_values = {
             key: val
             for key, val in setup_values.items()
@@ -231,6 +237,8 @@ class MyPVDevice(ABC):
         }
 
         data_values = await self._connection.fetch_data()
+        if not data_values:
+            return False
         data_values = {
             key: val
             for key, val in data_values.items()
@@ -286,7 +294,7 @@ class MyPVDevice(ABC):
 
         return False
 
-    def get_setup_configurations(self) -> dict[str, [str, Any]]:
+    def get_setup_configurations(self) -> dict[str, dict[str, Any]]:
         """Gets the configuration of the available setup parameters."""
         setup_keys = self._setup_values.keys()
         return {
@@ -306,7 +314,7 @@ class MyPVDevice(ABC):
     def get_setup_configuration(self, key: str) -> dict[str, Any] | None:
         return self.get_setup_configurations().get(key)
 
-    def get_setup_value(self, key: str) -> bool | float | int | str | None:
+    def get_setup_value(self, key: str) -> Any:
         """Gets the value of the given setup parameter."""
         if not self.connected:
             raise MyPVConnectionError()
@@ -323,20 +331,21 @@ class MyPVDevice(ABC):
             return None
 
         config = self.get_setup_configuration(key)
-        value = self._setup_values.get(key, None)
-        match config.get("type"):
-            case "boolean":
-                value = bool(value)
-            case "number":
-                value = int(value)
-                if divider := config.get("divider"):
-                    value = value / divider
-                if multiplier := config.get("multiplier"):
-                    value = value * multiplier
-            case "enumeration":
-                value = str(value)
-            case "string":
-                value = str(value)
+        value = self._setup_values.get(key)
+        if config and value is not None:
+            match config.get("type"):
+                case "boolean":
+                    value = bool(value)
+                case "number":
+                    value = int(value)
+                    if divider := config.get("divider"):
+                        value = value / divider
+                    if multiplier := config.get("multiplier"):
+                        value = value * multiplier
+                case "enumeration":
+                    value = str(value)
+                case "string":
+                    value = str(value)
 
         return value
 
@@ -365,7 +374,7 @@ class MyPVDevice(ABC):
 
         return False
 
-    def get_data_configurations(self) -> dict[str, [str, Any]]:
+    def get_data_configurations(self) -> dict[str, dict[str, Any]]:
         """Gets the configuration of the available device data."""
         data_keys = self._data_values.keys()
         data_configurations = {
@@ -391,7 +400,7 @@ class MyPVDevice(ABC):
     def get_data_configuration(self, key: str) -> dict[str, Any] | None:
         return self.get_data_configurations().get(key)
 
-    def get_data_value(self, key: str) -> bool | float | int | str | None:
+    def get_data_value(self, key: str) -> Any:
         """Gets the value of the given device data key."""
         if not self.connected:
             raise MyPVConnectionError()
@@ -401,25 +410,26 @@ class MyPVDevice(ABC):
 
         config = self.get_data_configuration(key)
         value = self._data_values.get(key, None)
-        match config.get("type"):
-            case "boolean":
-                value = bool(value)
-            case "number":
-                value = int(value)
-                if divider := config.get("divider"):
-                    value = value / divider
-                if multiplier := config.get("multiplier"):
-                    value = value * multiplier
-            case "enumeration":
-                value = str(value)
-            case "string":
-                value = str(value)
+        if config and value is not None:
+            match config.get("type"):
+                case "boolean":
+                    value = bool(value)
+                case "number":
+                    value = int(value)
+                    if divider := config.get("divider"):
+                        value = value / divider
+                    if multiplier := config.get("multiplier"):
+                        value = value * multiplier
+                case "enumeration":
+                    value = str(value)
+                case "string":
+                    value = str(value)
 
         return value
 
-    async def set_setup_value(self, key: str, value: bool | float | int | str) -> bool:
+    async def set_setup_value(self, key: str, value: Any) -> bool:
         """Sets the value of the given setup parameter."""
-        if not self.connected:
+        if not self._connection or not self.connected:
             raise MyPVConnectionError()
 
         if not self.supports_configuration(key):
@@ -434,27 +444,28 @@ class MyPVDevice(ABC):
             return False
 
         config = self.get_setup_configuration(key)
-        command = config.get("command")
-        if command:
-            return await self.send_command(command, value)
-
-        match config.get("type"):
-            case "boolean":
-                value = int(value)
-            case "number":
-                if not config.get("min", 0) <= value <= config.get("max"):
-                    return False
-
-                if divider := config.get("divider"):
-                    value = value * divider
-                if multiplier := config.get("multiplier"):
-                    value = value / multiplier
-
-                value = int(value)
-            case "enumeration":
-                if value not in config.get("options"):
-                    return False
-                value = int(value)
+        if config:
+            command = config.get("command")
+            if command:
+                return await self.send_command(command, value)
+    
+            match config.get("type"):
+                case "boolean":
+                    value = int(value)
+                case "number":
+                    if not config.get("min", 0) <= value <= config.get("max", 0):
+                        return False
+    
+                    if divider := config.get("divider"):
+                        value = value * divider
+                    if multiplier := config.get("multiplier"):
+                        value = value / multiplier
+    
+                    value = int(value)
+                case "enumeration":
+                    if value not in config["options"]:
+                        return False
+                    value = int(value)
 
         result = await self._connection.set_setup_value(key, value)
 
@@ -468,7 +479,7 @@ class MyPVDevice(ABC):
             "commands"
         ][command].get("advanced", False) in [False, self.advanced]
 
-    def get_command_configurations(self) -> dict[str, [str, Any]]:
+    def get_command_configurations(self) -> dict[str, dict[str, Any]]:
         """Gets the configuration of the available commands supported by the device."""
         return {
             key: val
@@ -480,37 +491,40 @@ class MyPVDevice(ABC):
         return self.get_command_configurations().get(command)
 
     async def send_command(
-        self, command: str, value: bool | float | int | str | None = None
+        self, command: str, value: Any = None
     ) -> bool:
         """Sends a command to the device."""
-        if not self.connected:
+        if not self._connection or not self.connected:
             raise MyPVConnectionError()
 
         if not self.supports_command(command):
             raise MyPVNotSupportedError(command)
 
         config = self.get_command_configuration(command)
-        match config.get("type"):
-            case "boolean":
-                value = int(value)
-            case "number":
-                value = int(value)
-                if not config.get("min", 0) <= value <= config.get("max"):
-                    return False
-
-                if divider := config.get("divider"):
-                    value = value * divider
-                if multiplier := config.get("multiplier"):
-                    value = value / multiplier
-            case "fixed":
-                value = config.get("value")
-            case "any":
-                value = 1
+        if config:
+            match config.get("type"):
+                case "boolean":
+                    value = int(value)
+                case "number":
+                    value = int(value)
+                    if not config.get("min", 0) <= value <= config.get("max"):
+                        return False
+    
+                    if divider := config.get("divider"):
+                        value = value * divider
+                    if multiplier := config.get("multiplier"):
+                        value = value / multiplier
+                case "fixed":
+                    value = config.get("value")
+                case "any":
+                    value = 1
 
         return await self._connection.send_command(command, value)
 
     def supports_main_mode(self, mode: MyPVDeviceMainMode) -> bool:
         """Returns True if device supports the given main device mode."""
+        if not self._main_modes:
+            return False
         return mode in self._main_modes
 
     @property
@@ -526,7 +540,7 @@ class MyPVDevice(ABC):
 
     @property
     def is_on(self) -> bool:
-        return self.get_setup_value("devmode")
+        return self.get_setup_value("devmode") is True
 
     async def turn_on(self) -> bool:
         return await self.set_setup_value("devmode", True)
@@ -541,7 +555,7 @@ class MyPVLocalDevice(MyPVDevice):
     """
 
     _host: str
-    _password: str
+    _password: str | None
 
     def __init__(
         self, host: str, password: str | None = None, advanced: bool = False
@@ -559,6 +573,7 @@ class MyPVLocalDevice(MyPVDevice):
     async def connect(self) -> bool:
         await self.disconnect()
 
+        connection: MyPVConnection
         if self._password:
             connection = MyPVHTTPSConnection(self._host, self._password)
         else:
@@ -570,10 +585,10 @@ class MyPVLocalDevice(MyPVDevice):
                 return False
         finally:
             if connection.mypv_dev:
-                self._serial_number = connection.mypv_dev.get("sn")
+                self._serial_number = connection.mypv_dev["sn"]
                 await self._read_config()
-                self._model = self._device_config.get("name")
-                self._firmware_version = connection.mypv_dev.get("fwversion")
+                self._model = self._device_config["name"]
+                self._firmware_version = connection.mypv_dev["fwversion"]
 
         self._connection = connection
 
@@ -628,7 +643,7 @@ class MyPVCloudDevice(MyPVDevice):
                 return False
         finally:
             await self._read_config()
-            self._model = self._device_config.get("name")
+            self._model = self._device_config["name"]
 
         self._connection = connection
 
