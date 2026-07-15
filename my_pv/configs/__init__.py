@@ -35,11 +35,12 @@ import importlib.resources
 import json
 import logging
 from json.decoder import JSONDecodeError
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def _deep_merge(dict1, dict2):
+def _deep_merge(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
     for key in dict2:
         if (
             key in dict1
@@ -52,19 +53,20 @@ def _deep_merge(dict1, dict2):
     return dict1
 
 
-async def read_config(serial_number: str) -> dict | None:
+async def read_config(serial_number: str | None) -> dict[str, Any]:
     """Reads the configuration for a device with a given serial number."""
 
     config_files = ["000000.json"]
-    config_files.append(
-        "".join(
-            c if c.isalnum() or c in "._-" else "_" for c in serial_number[:6].lower()
+    if serial_number:
+        config_files.append(
+            "".join(
+                c if c.isalnum() or c in "._-" else "_" for c in serial_number[:6].lower()
+            )
+            + ".json"
         )
-        + ".json"
-    )
     logger.debug("Using config files %s", config_files)
 
-    config = None
+    config: dict[str, Any] | None = None
     for config_file in config_files:
         try:
             text = await asyncio.get_running_loop().run_in_executor(
@@ -85,4 +87,4 @@ async def read_config(serial_number: str) -> dict | None:
         config = {key: val for key, val in config.items() if val is not None}
         return config
 
-    return None
+    return {}
