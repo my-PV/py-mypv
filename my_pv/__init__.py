@@ -595,6 +595,7 @@ class MyPVLocalDevice(MyPVDevice):
             # Get the device setup
             setup_values = await connection.fetch_setup()
             if not setup_values:
+                await connection.close()
                 return False
     
             self._init_device(setup_values)
@@ -656,6 +657,7 @@ class MyPVCloudDevice(MyPVDevice):
             # Get the device setup
             setup_values = await connection.fetch_setup()
             if not setup_values:
+                await connection.close()
                 return False
     
             self._init_device(setup_values)
