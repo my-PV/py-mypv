@@ -448,20 +448,25 @@ class MyPVDevice(ABC):
         if config:
             command = config.get("command")
             if command:
-                return await self.send_command(command, value)
-    
+                result = await self.send_command(command, value)
+
+                if result:
+                    self._setup_values[key] = value
+
+                return result
+
             match config.get("type"):
                 case "boolean":
                     value = int(value)
                 case "number":
                     if not config.get("min", 0) <= value <= config.get("max", 0):
                         return False
-    
+
                     if divider := config.get("divider"):
                         value = value * divider
                     if multiplier := config.get("multiplier"):
                         value = value / multiplier
-    
+
                     value = int(value)
                 case "enumeration":
                     if value not in config["options"]:
@@ -491,9 +496,7 @@ class MyPVDevice(ABC):
     def get_command_configuration(self, command: str) -> dict[str, Any] | None:
         return self.get_command_configurations().get(command)
 
-    async def send_command(
-        self, command: str, value: Any = None
-    ) -> bool:
+    async def send_command(self, command: str, value: Any = None) -> bool:
         """Sends a command to the device."""
         if not self._connection or not self.connected:
             raise MyPVConnectionError()
@@ -510,7 +513,7 @@ class MyPVDevice(ABC):
                     value = int(value)
                     if not config.get("min", 0) <= value <= config.get("max"):
                         return False
-    
+
                     if divider := config.get("divider"):
                         value = value * divider
                     if multiplier := config.get("multiplier"):
@@ -597,7 +600,7 @@ class MyPVLocalDevice(MyPVDevice):
             if not setup_values:
                 await connection.close()
                 return False
-    
+
             self._init_device(setup_values)
         except MyPVConnectionError:
             await connection.close()
@@ -659,7 +662,7 @@ class MyPVCloudDevice(MyPVDevice):
             if not setup_values:
                 await connection.close()
                 return False
-    
+
             self._init_device(setup_values)
         except MyPVConnectionError:
             await connection.close()
