@@ -2,10 +2,21 @@
   "name": "HEA•THOR IoT 3,5 kW",
   "commands": {},
   "data": {
+    "curr_l1": {
+      "name": "Current",
+      "type": "number",
+      "unit": "A"
+    },
     "power_grid": {
-      "name": "Grid Power",
+      "name": "Power",
       "type": "number",
       "unit": "W"
+    },
+    "volt_mains_l1": {
+      "divider": 10,
+      "name": "Voltage",
+      "type": "number",
+      "unit": "V"
     }
   },
   "setup": {
