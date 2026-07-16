@@ -37,7 +37,7 @@ HTTPS_PORT: Final = 443
 
 CLOUD_HOST = "api.my-pv.com"
 
-DONT_ESCAPE = "-_.!~*'()"
+DONT_ENCODE = "-_.!~*'()"
 
 
 class MyPVConnection(ABC):
@@ -193,7 +193,7 @@ class MyPVHTTPConnection(MyPVConnection):
             raise MyPVConnectionError()
 
         if data:
-            query = urlencode(data, safe=DONT_ESCAPE)
+            query = urlencode(data, safe=DONT_ENCODE)
             url = f"{url}?{query}"
 
         try:
@@ -293,7 +293,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
 
     async def _auth(self, session: ClientSession) -> bool:
         auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
-        data = urlencode({"pw": self._password}, safe=DONT_ESCAPE)
+        data = urlencode({"pw": self._password}, safe=DONT_ENCODE)
         response = await session.post(auth_url, data=data, ssl=self._SSL_CHECK)
         response_body = await response.text()
         response_json = {}
@@ -310,7 +310,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError()
 
-        data = urlencode(data, safe=DONT_ESCAPE)
+        data = urlencode(data, safe=DONT_ENCODE)
 
         try:
             response = await self._session.post(url, data=data, ssl=self._SSL_CHECK)
