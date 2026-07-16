@@ -511,7 +511,7 @@ class MyPVDevice(ABC):
                     value = int(value)
                 case "number":
                     value = int(value)
-                    if not config.get("min", 0) <= value <= config.get("max"):
+                    if not config.get("min", 0) <= value <= config.get("max", 0):
                         return False
 
                     if divider := config.get("divider"):
