@@ -60,9 +60,24 @@
       },
       "type": "enumeration"
     },
+    "curr_l1": {
+      "name": "Current Phase L1",
+      "type": "number",
+      "unit": "A"
+    },
+    "curr_l2": {
+      "name": "Current Phase L2",
+      "type": "number",
+      "unit": "A"
+    },
+    "curr_l3": {
+      "name": "Current Phase L3",
+      "type": "number",
+      "unit": "A"
+    },
     "curr_mains": {
       "divider": 10,
-      "name": "Mains Current",
+      "name": "Current",
       "type": "number",
       "unit": "A"
     },
@@ -136,8 +151,41 @@
       "type": "number",
       "unit": "h"
     },
+    "volt_l1": {
+      "name": "Voltage Phase L2",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_l2": {
+      "name": "Voltage Phase L2",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_l3": {
+      "name": "Voltage Phase L3",
+      "type": "number",
+      "unit": "V"
+    },
     "volt_mains": {
       "name": "Voltage",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_mains_l1": {
+      "divider": 10,
+      "name": "Voltage Phase L1",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_mains_l2": {
+      "divider": 10,
+      "name": "Voltage Phase L2",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_mains_l3": {
+      "divider": 10,
+      "name": "Voltage Phase L3",
       "type": "number",
       "unit": "V"
     },
