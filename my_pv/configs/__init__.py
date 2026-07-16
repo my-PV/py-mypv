@@ -60,7 +60,8 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
     if serial_number:
         config_files.append(
             "".join(
-                c if c.isalnum() or c in "._-" else "_" for c in serial_number[:6].lower()
+                c if c.isalnum() or c in "._-" else "_"
+                for c in serial_number[:6].lower()
             )
             + ".json"
         )
