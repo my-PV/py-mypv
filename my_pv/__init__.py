@@ -448,7 +448,12 @@ class MyPVDevice(ABC):
         if config:
             command = config.get("command")
             if command:
-                return await self.send_command(command, value)
+                result = await self.send_command(command, value)
+
+                if result:
+                    self._setup_values[key] = value
+
+                return result
     
             match config.get("type"):
                 case "boolean":
