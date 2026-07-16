@@ -37,6 +37,8 @@ HTTPS_PORT: Final = 443
 
 CLOUD_HOST = "api.my-pv.com"
 
+DONT_ESCAPE = "-_.!~*'()"
+
 
 class MyPVConnection(ABC):
     """
@@ -184,9 +186,15 @@ class MyPVHTTPConnection(MyPVConnection):
 
         return True
 
-    async def _get(self, url: str) -> dict[str, Any]:
+    async def _get(
+        self, url: str, data: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError()
+
+        if data:
+            query = urlencode(data, safe=DONT_ESCAPE)
+            url = f"{url}?{query}"
 
         try:
             response = await self._session.get(url, ssl=self._SSL_CHECK)
@@ -244,19 +252,21 @@ class MyPVHTTPConnection(MyPVConnection):
         return {key.lower(): value for key, value in data.items()}
 
     async def set_setup_value(self, key: str, value: Any) -> bool:
-        query = urlencode({key: value})
-        url = urlunsplit([self._PROTOCOL, self._host, "/setup.jsn", query, None])
-        logger.debug("Set setup parameter url: %s", url)
+        if not self._setup_url:
+            return False
 
-        response = await self._get(url)
+        data = {key: value}
+
+        response = await self._get(self._setup_url, data)
         return response.get(key) == value
 
     async def send_command(self, key: str, value: Any) -> bool:
-        query = urlencode({key: value})
-        url = urlunsplit([self._PROTOCOL, self._host, "/setup.jsn", query, None])
-        logger.debug("Send command parameter url: %s", url)
+        if not self._setup_url:
+            return False
 
-        await self._get(url)
+        data = {key: value}
+
+        await self._get(self._setup_url, data)
 
         return True
 
@@ -283,7 +293,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
 
     async def _auth(self, session: ClientSession) -> bool:
         auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
-        data = {"pw": self._password}
+        data = urlencode({"pw": self._password}, safe=DONT_ESCAPE)
         response = await session.post(auth_url, data=data, ssl=self._SSL_CHECK)
         response_body = await response.text()
         response_json = {}
@@ -299,6 +309,8 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
     async def _post(self, url: str, data: dict[str, Any]) -> dict[str, Any]:
         if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError()
+
+        data = urlencode(data, safe=DONT_ESCAPE)
 
         try:
             response = await self._session.post(url, data=data, ssl=self._SSL_CHECK)
@@ -327,21 +339,21 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         return {}
 
     async def set_setup_value(self, key: str, value: Any) -> bool:
-        url = urlunsplit([self._PROTOCOL, self._host, "/setup.jsn", None, None])
-        logger.debug("Set setup parameter url: %s", url)
+        if not self._setup_url:
+            return False
 
         data = {key: value}
 
-        response = await self._post(url, data)
+        response = await self._post(self._setup_url, data)
         return response.get(key) == value
 
     async def send_command(self, key: str, value: Any) -> bool:
-        url = urlunsplit([self._PROTOCOL, self._host, "/setup.jsn", None, None])
-        logger.debug("Send command parameter url: %s", url)
+        if not self._setup_url:
+            return False
 
         data = {key: value}
 
-        await self._post(url, data)
+        await self._post(self._setup_url, data)
 
         return True
 
