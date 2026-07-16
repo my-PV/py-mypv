@@ -50,6 +50,7 @@ recursive = "y"
 [tool.mypy]
 python_version = "3.14"
 mypy_path = "my_pv"
+allow_redefinition = true
 
 [[tool.mypy.overrides]]
 module = ["*._version"]
