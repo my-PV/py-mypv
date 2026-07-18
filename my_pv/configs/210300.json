@@ -7,10 +7,23 @@
       "type": "number",
       "unit": "A"
     },
+    "fwversionlatest": {
+      "name": "Latest Firmware",
+      "type": "string"
+    },
     "power_grid": {
       "name": "Power",
       "type": "number",
       "unit": "W"
+    },
+    "upd_percentage": {
+      "name": "Update Percentage",
+      "type": "number",
+      "unit": "%"
+    },
+    "upd_state": {
+      "name": "Update Status",
+      "type": "number"
     },
     "volt_mains_l1": {
       "divider": 10,
