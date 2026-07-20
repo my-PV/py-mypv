@@ -97,6 +97,7 @@ class MyPVDevice(ABC):
     _main_modes: tuple[MyPVDeviceMainMode, ...] | None = None
 
     _firmware_update_lock: asyncio.Lock
+    _next_check_fwupd: float | None = None
 
     def __init__(self, advanced: bool = False):
 
@@ -232,11 +233,14 @@ class MyPVDevice(ABC):
         ):
             return False
 
-        return self.firmware_version < self.latest_firmware_version
+        if (upd_state := self._get_data_value("upd_state")) is None:
+            return False
+
+        return upd_state != 0
 
     async def update_firmware(self) -> bool:
         """Updates the firmware on the device."""
-        if self._get_data_value("upd_state") == 0:
+        if self._get_data_value("upd_state") in [None, 0]:
             # Nothing to update.
             return False
 
@@ -294,7 +298,7 @@ class MyPVDevice(ABC):
                 await asyncio.sleep(1)
                 try:
                     await self.fetch_data()
-                except MyPVConnectionError():
+                except MyPVConnectionError:
                     # A connection error is expected as the device will reboot during the firmware update.
                     pass
 
@@ -366,6 +370,12 @@ class MyPVDevice(ABC):
             for key, val in self._device_config["data"].items()
             if key in data_values and val.get("readonly", True)
         }
+
+        if self.supports_command("check_fwupd") and (
+            not self._next_check_fwupd or time.time() > self._next_check_fwupd
+        ):
+            await self.send_command("check_fwupd")
+            self._next_check_fwupd = time.time() + 24 * 60 * 60  # Once a  day
 
         return True
 
