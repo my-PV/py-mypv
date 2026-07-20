@@ -16,8 +16,10 @@
 The my-PV library.
 """
 
+import asyncio
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any
@@ -80,9 +82,9 @@ class MyPVDevice(ABC):
 
     _serial_number: str
     _model: str
-    _hardware_version: str | None
-    _firmware_version: str | None
-    _mac_address: str | None
+    _hardware_version: str | None = None
+    _firmware_version: str | None = None
+    _mac_address: str | None = None
 
     _connection: MyPVConnection | None = None
     _uri: str | None = None
@@ -94,6 +96,9 @@ class MyPVDevice(ABC):
 
     _main_modes: tuple[MyPVDeviceMainMode, ...] | None = None
 
+    _firmware_update_lock: asyncio.Lock
+    _next_check_fwupd: float | None = None
+
     def __init__(self, advanced: bool = False):
 
         self.advanced = advanced
@@ -101,6 +106,8 @@ class MyPVDevice(ABC):
         self._setup_values = {}
         self._data_values = {}
         self._device_config = {}
+
+        self._firmware_update_lock = asyncio.Lock()
 
     def _init_device(self, setup_values: dict[str, Any]) -> None:
         self._hardware_version = setup_values.get("hwvers")
@@ -212,6 +219,94 @@ class MyPVDevice(ABC):
         return self._firmware_version
 
     @property
+    def latest_firmware_version(self) -> str | None:
+        """The device firmware version."""
+        return self._get_data_value("fwversionlatest")
+
+    @property
+    def firmware_update_available(self) -> bool:
+        """Checks if there is new firmware available for the device."""
+        if (
+            not self.supports_command("firmware_update")
+            or not self.firmware_version
+            or not self.latest_firmware_version
+        ):
+            return False
+
+        return self._get_data_value("upd_state") not in [None, "0"]
+
+    async def update_firmware(self) -> bool:
+        """Updates the firmware on the device."""
+        if self._get_data_value("upd_state") in [None, "0"]:
+            # Nothing to update.
+            return False
+
+        if self._firmware_update_lock.locked():
+            return False
+
+        async with self._firmware_update_lock:
+            # Download firmware.
+            if (
+                self.supports_command("firmware_download")
+                and self._get_data_value("upd_state") == "1"
+            ):
+                logger.info("Downloading firmware")
+                await self.send_command("firmware_download")
+
+            # Wait for download to be finished.
+            if self._get_data_value("upd_state") in ("1", "3"):
+                timeout = time.time() + 300  # 5 minutes
+                while True:
+                    logger.debug(
+                        "Downloading firmware %i%%",
+                        self._get_data_value("upd_percentage"),
+                    )
+                    if self._get_data_value("upd_state") == "10":
+                        logger.debug("Downloading finished")
+                        break
+                    # if self._get_data_value("upd_percentage") == 100:
+                    #     logger.debug("Downloading finished")
+                    #     break
+                    if time.time() > timeout:
+                        logger.debug("Downloading timeout")
+                        return False
+
+                    await asyncio.sleep(1)
+                    await self.fetch_data()
+
+            # Update firmware.
+            if (
+                self.supports_command("firmware_update")
+                and self._get_data_value("upd_state") == "10"
+            ):
+                logger.info("Updating firmware")
+                await self.send_command("firmware_update")
+
+            # Wait for update to be finished.
+            timeout = time.time() + 300  # 5 minutes
+            while True:
+                if self._get_data_value("upd_state") == "0":
+                    logger.debug("Update finished")
+                    return True
+                if time.time() > timeout:
+                    logger.debug("Update timeout")
+                    return False
+
+                await asyncio.sleep(1)
+                try:
+                    await self.fetch_data()
+                except MyPVConnectionError:
+                    # A connection error is expected as the device will reboot during the firmware update.
+                    pass
+
+    @property
+    def firmware_update_progress(self) -> int | None:
+        """Returns the progress of the firmware update in percents, or None if no firmware update is active."""
+        if self._get_data_value("upd_state") == "3":
+            return self._get_data_value("upd_percentage")
+        return None
+
+    @property
     def mac_address(self) -> str | None:
         """The device MAC address."""
         return self._mac_address
@@ -272,6 +367,12 @@ class MyPVDevice(ABC):
             for key, val in self._device_config["data"].items()
             if key in data_values and val.get("readonly", True)
         }
+
+        if self.supports_command("check_fwupd") and (
+            not self._next_check_fwupd or time.time() > self._next_check_fwupd
+        ):
+            await self.send_command("check_fwupd")
+            self._next_check_fwupd = time.time() + 24 * 60 * 60  # Once a  day
 
         return True
 
@@ -401,16 +502,10 @@ class MyPVDevice(ABC):
     def get_data_configuration(self, key: str) -> dict[str, Any] | None:
         return self.get_data_configurations().get(key)
 
-    def get_data_value(self, key: str) -> Any:
-        """Gets the value of the given device data key."""
-        if not self.connected:
-            raise MyPVConnectionError()
-
-        if not self.supports_data(key):
-            raise MyPVNotSupportedError(key)
-
+    def _get_data_value(self, key: str) -> Any:
+        """Gets the value of the given device data key or None if the given device data key is not supported."""
         config = self.get_data_configuration(key)
-        value = self._data_values.get(key, None)
+        value = self._data_values.get(key)
         if config and value is not None:
             match config.get("type"):
                 case "boolean":
@@ -427,6 +522,22 @@ class MyPVDevice(ABC):
                     value = str(value)
 
         return value
+
+    def get_data_value(self, key: str) -> Any:
+        """
+        Gets the value of the given device data key.
+
+        Throws MyPVConnectionError if the device is not connected.
+
+        Throws MyPVNotSupportedError if the given device data key is not supported.
+        """
+        if not self.connected:
+            raise MyPVConnectionError()
+
+        if not self.supports_data(key):
+            raise MyPVNotSupportedError(key)
+
+        return self._get_data_value(key)
 
     async def set_setup_value(self, key: str, value: Any) -> bool:
         """Sets the value of the given setup parameter."""

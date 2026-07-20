@@ -11,8 +11,7 @@
     "factory_reset": {
       "advanced": true,
       "name": "Factory Reset",
-      "type": "fixed",
-      "value": 1
+      "type": "any"
     },
     "firmware_download": {
       "firmware": ">=a0020000",
@@ -26,8 +25,7 @@
     },
     "reboot_device": {
       "name": "Reboot",
-      "type": "fixed",
-      "value": 1
+      "type": "any"
     }
   },
   "data": {
@@ -95,6 +93,10 @@
       "name": "Firmware Version",
       "type": "string"
     },
+    "fwversionlatest": {
+      "name": "Latest Firmware",
+      "type": "string"
+    },
     "psversion": {
       "name": "Power Section Version",
       "type": "string"
@@ -145,6 +147,21 @@
       "name": "Temperature 4",
       "type": "number",
       "unit": "°C"
+    },
+    "upd_percentage": {
+      "name": "Update Percentage",
+      "type": "number",
+      "unit": "%"
+    },
+    "upd_state": {
+      "name": "Update Status",
+      "options": {
+        "0": "No Update Available",
+        "1": "Update Available",
+        "3": "Downloading Update",
+        "10": "Update Downloaded"
+      },
+      "type": "enumeration"
     },
     "uptime": {
       "name": "Uptime",

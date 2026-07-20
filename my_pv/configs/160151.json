@@ -2,23 +2,10 @@
   "name": "AC ELWA 2",
   "commands": {},
   "data": {
-    "fwversionlatest": {
-      "name": "Latest Firmware",
-      "type": "string"
-    },
     "power_elwa2": {
       "name": "Heating Power",
       "type": "number",
       "unit": "W"
-    },
-    "upd_percentage": {
-      "name": "Update Percentage",
-      "type": "number",
-      "unit": "%"
-    },
-    "upd_state": {
-      "name": "Update Status",
-      "type": "number"
     }
   },
   "setup": {
