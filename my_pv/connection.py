@@ -491,14 +491,14 @@ class MyPVCloudConnection(MyPVHTTPConnection):
 
         return success
 
-    async def _put(self, url: str, body: str) -> bool:
+    async def _put(self, url: str, data: str) -> bool:
         if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError()
 
         logger.debug("PUT %s %s", url, data)
 
         try:
-            response = await self._session.put(url, data=body, ssl=self._SSL_CHECK)
+            response = await self._session.put(url, data=data, ssl=self._SSL_CHECK)
             if response.status == 429:
                 logger.error(response.reason)
                 return False
@@ -558,14 +558,14 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         if not self._setup_url:
             return False
 
-        body = json.dumps({key: value})
+        data = json.dumps({key: value})
 
-        return await self._put(self._setup_url, body)
+        return await self._put(self._setup_url, data)
 
     async def send_command(self, key: str, value: Any) -> bool:
         if not self._setup_url:
             return False
 
-        body = json.dumps({key: value})
+        data = json.dumps({key: value})
 
-        return await self._put(self._setup_url, body)
+        return await self._put(self._setup_url, data)
