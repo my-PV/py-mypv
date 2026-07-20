@@ -2,10 +2,6 @@
   "name": "AC ELWA 2",
   "commands": {},
   "data": {
-    "fwversionlatest": {
-      "name": "Latest Firmware",
-      "type": "string"
-    },
     "power_elwa2": {
       "name": "Heating Power",
       "type": "number",

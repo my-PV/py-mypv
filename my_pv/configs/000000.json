@@ -93,6 +93,10 @@
       "name": "Firmware Version",
       "type": "string"
     },
+    "fwversionlatest": {
+      "name": "Latest Firmware",
+      "type": "string"
+    },
     "psversion": {
       "name": "Power Section Version",
       "type": "string"
