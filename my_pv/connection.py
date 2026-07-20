@@ -196,6 +196,8 @@ class MyPVHTTPConnection(MyPVConnection):
             query = urlencode(data, safe=DONT_ENCODE)
             url = f"{url}?{query}"
 
+        logger.debug("GET %s", url)
+
         try:
             response = await self._session.get(url, ssl=self._SSL_CHECK)
             if response.status == 429:
@@ -311,6 +313,8 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
             raise MyPVConnectionError()
 
         data = urlencode(data, safe=DONT_ENCODE)
+
+        logger.debug("POST %s %s", url, data)
 
         try:
             response = await self._session.post(url, data=data, ssl=self._SSL_CHECK)
@@ -490,6 +494,8 @@ class MyPVCloudConnection(MyPVHTTPConnection):
     async def _put(self, url: str, body: str) -> bool:
         if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError()
+
+        logger.debug("PUT %s %s", url, data)
 
         try:
             response = await self._session.put(url, data=body, ssl=self._SSL_CHECK)
