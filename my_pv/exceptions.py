@@ -29,6 +29,12 @@ class MyPVConnectionError(MyPVException):
     """
 
 
+class MyPVTooManyRequestsError(MyPVConnectionError):
+    """
+    my-PV too many requests error.
+    """
+
+
 class MyPVAuthenticationError(MyPVException):
     """
     my-PV authentication error.
