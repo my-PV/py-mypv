@@ -28,7 +28,11 @@ from urllib.parse import urlencode, urlunsplit
 from aiohttp import ClientSession, ClientTimeout
 from aiohttp.client_exceptions import ClientConnectionError
 
-from my_pv.exceptions import MyPVAuthenticationError, MyPVConnectionError
+from my_pv.exceptions import (
+    MyPVAuthenticationError,
+    MyPVConnectionError,
+    MyPVTooManyRequestsError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +114,24 @@ class MyPVHTTPConnection(MyPVConnection):
 
     async def _auth(self, session: ClientSession) -> bool:
         """The older HTTP only firmware doesn't yet support authentication."""
+        auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
+
+        logger.debug("GET %s", auth_url)
+
         try:
-            auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
-            await session.get(auth_url, ssl=True)
+            response = await session.get(auth_url, ssl=True)
+
+            if response.status == 429:
+                logger.error(response.reason)
+                raise MyPVTooManyRequestsError(response.reason)
         except ssl.SSLCertVerificationError as exc:
             # Connection is redirected to SSL, authentication is needed.
             raise MyPVAuthenticationError() from exc
+        except ConnectionRefusedError as exc:
+            raise MyPVTooManyRequestsError(response.reason) from exc
+        except (ClientConnectionError, asyncio.TimeoutError) as exc:
+            await self.close()
+            raise MyPVConnectionError() from exc
 
         return True
 
@@ -200,19 +216,18 @@ class MyPVHTTPConnection(MyPVConnection):
 
         try:
             response = await self._session.get(url, ssl=self._SSL_CHECK)
+            response_body = await response.text()
+
             if response.status == 429:
                 logger.error(response.reason)
-                return {}
+                raise MyPVTooManyRequestsError(response.reason)
 
-            response_body = await response.text()
             response_json = {}
             if response.content_type == "application/json":
                 response_json = json.loads(response_body)
-                # if isinstance(response_json, str):
-                #     response_json = json.loads(response_json)
 
-            if response.status == 200:
-                return response_json
+                if response.status == 200:
+                    return response_json
 
             if response.status == 401:
                 raise MyPVAuthenticationError(response_json.get("msg"))
@@ -230,6 +245,8 @@ class MyPVHTTPConnection(MyPVConnection):
                 response_body,
             )
             raise MyPVConnectionError() from exc
+        except ConnectionRefusedError as exc:
+            raise MyPVTooManyRequestsError(response.reason) from exc
         except (ClientConnectionError, asyncio.TimeoutError) as exc:
             await self.close()
             raise MyPVConnectionError() from exc
@@ -295,15 +312,43 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
 
     async def _auth(self, session: ClientSession) -> bool:
         auth_url = urlunsplit([self._PROTOCOL, self._host, "/auth.jsn", None, None])
-        data = urlencode({"pw": self._password}, safe=DONT_ENCODE)
-        response = await session.post(auth_url, data=data, ssl=self._SSL_CHECK)
-        response_body = await response.text()
-        response_json = {}
-        if response.content_type == "application/json":
-            response_json = json.loads(response_body)
 
-        if response_json.get("auth", 0) == 1:
-            return True
+        data = urlencode({"pw": self._password}, safe=DONT_ENCODE)
+
+        logger.debug("POST %s %s", auth_url, urlencode({"pw": "***"}, safe=DONT_ENCODE))
+
+        try:
+            response = await session.post(auth_url, data=data, ssl=self._SSL_CHECK)
+            response_body = await response.text()
+
+            if response.status == 429:
+                logger.error(response.reason)
+                raise MyPVTooManyRequestsError(response.reason)
+
+            if response.status == 200 and response.content_type == "application/json":
+                response_json = json.loads(response_body)
+
+                if response_json.get("auth", 0) == 1:
+                    return True
+            else:
+                logger.error(
+                    "Unexpected response %i %s: %s",
+                    response.status,
+                    response.reason,
+                    response_body,
+                )
+        except json.JSONDecodeError as exc:
+            logger.error(
+                "Invallid JSON for response status %i: %s",
+                response.status,
+                response_body,
+            )
+            raise MyPVConnectionError() from exc
+        except ConnectionRefusedError as exc:
+            raise MyPVTooManyRequestsError(response.reason) from exc
+        except (ClientConnectionError, asyncio.TimeoutError) as exc:
+            await self.close()
+            raise MyPVConnectionError() from exc
 
         # Authentication failed.
         raise MyPVAuthenticationError()
@@ -320,8 +365,19 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
             response = await self._session.post(url, data=data, ssl=self._SSL_CHECK)
             response_body = await response.text()
 
-            if response.status == 200 and response.content_type == "application/json":
-                return json.loads(response_body)
+            if response.status == 429:
+                logger.error(response.reason)
+                raise MyPVTooManyRequestsError(response.reason)
+
+            response_json = {}
+            if response.content_type == "application/json":
+                response_json = json.loads(response_body)
+
+                if response.status == 200:
+                    return response_json
+
+            if response.status == 401:
+                raise MyPVAuthenticationError(response_json.get("msg"))
 
             logger.error(
                 "Unexpected response %i %s: %s",
@@ -336,6 +392,8 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                 response_body,
             )
             raise MyPVConnectionError() from exc
+        except ConnectionRefusedError as exc:
+            raise MyPVTooManyRequestsError(response.reason) from exc
         except (ClientConnectionError, asyncio.TimeoutError) as exc:
             await self.close()
             raise MyPVConnectionError() from exc
@@ -501,15 +559,15 @@ class MyPVCloudConnection(MyPVHTTPConnection):
             response = await self._session.put(url, data=data, ssl=self._SSL_CHECK)
             if response.status == 429:
                 logger.error(response.reason)
-                return False
+                raise MyPVTooManyRequestsError(response.reason)
 
             response_body = await response.text()
             response_json = {}
             if response.content_type == "application/json":
                 response_json = json.loads(response_body)
 
-            if response.status == 200 and response_json == "ok":
-                return True
+                if response.status == 200 and response_json == "ok":
+                    return True
 
             if response.status == 401:
                 raise MyPVAuthenticationError(response_json.get("msg"))

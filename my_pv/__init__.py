@@ -32,6 +32,7 @@ from .connection import (
     MyPVConnection,
     MyPVHTTPConnection,
     MyPVHTTPSConnection,
+    MyPVTooManyRequestsError,
 )
 from .exceptions import MyPVNotSupportedError
 
@@ -272,7 +273,10 @@ class MyPVDevice(ABC):
                         return False
 
                     await asyncio.sleep(1)
-                    await self.fetch_data()
+                    try:
+                        await self.fetch_data()
+                    except MyPVTooManyRequestsError:
+                        pass
 
             # Update firmware.
             if (
