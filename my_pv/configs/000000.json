@@ -124,6 +124,12 @@
       "type": "number",
       "unit": "W"
     },
+    "temp_ps": {
+      "name": "Device Temperature",
+      "type": "number",
+      "unit": "°C",
+      "divider": 10
+    },
     "temp1": {
       "divider": 10,
       "name": "Temperature 1",

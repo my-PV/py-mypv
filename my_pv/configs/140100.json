@@ -6,6 +6,17 @@
       "name": "Heating Power",
       "type": "number",
       "unit": "W"
+    },
+    "power_solar": {
+      "name": "PV Power",
+      "type": "number",
+      "unit": "W"
+    },
+    "volt_solar": {
+      "divider": 1000,
+      "name": "PV Voltage",
+      "type": "number",
+      "unit": "V"
     }
   },
   "setup": {
