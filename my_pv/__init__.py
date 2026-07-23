@@ -123,25 +123,25 @@ class MyPVDevice(ABC):
             self._mac_address = mac_address
 
         match setup_values.get("mainmode"):
-            case 1:
+            case "1":
                 self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
-            case 2:
+            case "2":
                 self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
-            case 3:
+            case "3":
                 self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
-            case 4:
+            case "4":
                 self._main_modes = (
                     MyPVDeviceMainMode.HOT_WATER,
                     MyPVDeviceMainMode.HEATPUMP,
                 )
-            case 5:
+            case "5":
                 self._main_modes = (
                     MyPVDeviceMainMode.HOT_WATER,
                     MyPVDeviceMainMode.SPACE_HEATING,
                 )
-            case 6:
+            case "6":
                 self._main_modes = (MyPVDeviceMainMode.SPACE_HEATING,)
-            case 7:
+            case "7":
                 self._main_modes = (
                     MyPVDeviceMainMode.HOT_WATER,
                     MyPVDeviceMainMode.PWM,
@@ -154,7 +154,7 @@ class MyPVDevice(ABC):
         # If mainmode is 3 options 4 and 5 are possible.
         if (
             self.serial_number.startswith(("160150", "160151", "160152"))
-            and setup_values.get("mainmode") == 1
+            and setup_values.get("mainmode") == "1"
         ):
             del self._device_config["setup"]["bstmode"].get("options", {})["5"]
 
