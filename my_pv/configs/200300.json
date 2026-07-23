@@ -40,7 +40,6 @@
       "type": "number",
       "unit": "V"
     }
-    
   },
   "setup": {
     "bstmode": {
