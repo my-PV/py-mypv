@@ -234,7 +234,7 @@ class MyPVDevice(ABC):
         ):
             return False
 
-        return self._get_data_value("upd_state") not in ["None", "0"]
+        return self._get_data_value("upd_state") not in [None, "0"]
 
     async def update_firmware(self) -> bool:
         """Updates the firmware on the device."""
