@@ -234,7 +234,7 @@ class MyPVDevice(ABC):
         ):
             return False
 
-        return self._get_data_value("upd_state") not in [None, "0"]
+        return self._get_data_value("upd_state") not in ["None", "0"]
 
     async def update_firmware(self) -> bool:
         """Updates the firmware on the device."""
@@ -255,7 +255,7 @@ class MyPVDevice(ABC):
                 await self.send_command("firmware_download")
 
             # Wait for download to be finished.
-            if self._get_data_value("upd_state") in ("1", "3"):
+            if self._get_data_value("upd_state") in [str(x) for x in range(1, 10)]:
                 timeout = time.time() + 300  # 5 minutes
                 while True:
                     logger.debug(
@@ -265,9 +265,9 @@ class MyPVDevice(ABC):
                     if self._get_data_value("upd_state") == "10":
                         logger.debug("Downloading finished")
                         break
-                    # if self._get_data_value("upd_percentage") == 100:
-                    #     logger.debug("Downloading finished")
-                    #     break
+                    if self._get_data_value("upd_state") == "99":
+                        logger.debug("Downloading failed")
+                        break
                     if time.time() > timeout:
                         logger.debug("Downloading timeout")
                         return False
@@ -292,6 +292,9 @@ class MyPVDevice(ABC):
                 if self._get_data_value("upd_state") == "0":
                     logger.debug("Update finished")
                     return True
+                if self._get_data_value("upd_state") == "99":
+                    logger.error("Update failed")
+                    return False
                 if time.time() > timeout:
                     logger.debug("Update timeout")
                     return False

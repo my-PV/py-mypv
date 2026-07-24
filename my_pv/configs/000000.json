@@ -164,8 +164,16 @@
       "options": {
         "0": "No Update Available",
         "1": "Update Available",
+        "2": "Downloading Update",
         "3": "Downloading Update",
-        "10": "Update Downloaded"
+        "4": "Downloading Update",
+        "5": "Downloading Update",
+        "6": "Downloading Update",
+        "7": "Downloading Update",
+        "8": "Downloading Update",
+        "9": "Downloading Update",
+        "10": "Update Downloaded",
+        "99": "Update Failed"
       },
       "type": "enumeration"
     },
