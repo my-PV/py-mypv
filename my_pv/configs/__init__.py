@@ -41,15 +41,15 @@ logger = logging.getLogger(__name__)
 
 
 def _deep_merge(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
-    for key in dict2:
+    for key, value in dict2.items():
         if (
             key in dict1
             and isinstance(dict1[key], dict)
-            and isinstance(dict2[key], dict)
+            and isinstance(value, dict)
         ):
-            _deep_merge(dict1[key], dict2[key])
+            _deep_merge(dict1[key], value)
         else:
-            dict1[key] = dict2[key]
+            dict1[key] = value
     return dict1
 
 
