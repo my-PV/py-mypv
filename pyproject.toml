@@ -55,3 +55,6 @@ allow_redefinition = true
 [[tool.mypy.overrides]]
 module = ["*._version"]
 ignore_missing_imports = true
+
+[tool.codespell]
+ignore-words-list = "coversion"
