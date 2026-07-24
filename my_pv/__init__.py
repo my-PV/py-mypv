@@ -41,11 +41,13 @@ logger = logging.getLogger(__name__)
 CLOUD_FRONTEND = "https://live.my-pv.com/"
 
 _IGNORED_SETUP_KEYS = [
+    "coversion",
     "fwversion",
-    "psversion",
     "hwvers",
-    "serialno",
     "macadr",
+    "p9sversion",
+    "psversion",
+    "serialno",
 ]
 _IGNORED_DATA_KEYS = [
     "device",
@@ -112,7 +114,18 @@ class MyPVDevice(ABC):
 
     def _init_device(self, setup_values: dict[str, Any]) -> None:
         self._hardware_version = setup_values.get("hwvers")
-        self._firmware_version = setup_values.get("fwversion")
+
+        versions = []
+        if fwversion := setup_values.get("fwversion"):
+            versions.append(fwversion)
+        # if p9sversion := setup_values.get("p9sversion"):
+        #     versions.append(p9sversion)
+        # if psversion := setup_values.get("psversion"):
+        #     versions.append(psversion)
+        # if coversion := setup_values.get("coversion"):
+        #     versions.append(coversion)
+
+        self._firmware_version = ":".join(versions) if versions else None
 
         # Format MAC address
         mac_address = setup_values.get("macadr")
@@ -222,19 +235,41 @@ class MyPVDevice(ABC):
     @property
     def latest_firmware_version(self) -> str | None:
         """The device firmware version."""
-        return self._get_data_value("fwversionlatest")
+        versions = []
+        if fwversionlatest := self._get_data_value("fwversionlatest"):
+            versions.append(fwversionlatest)
+        # if p9sversionlatest := self._get_data_value("p9sversionlatest"):
+        #     versions.append(p9sversionlatest)
+        # if psversionlatest := self._get_data_value("psversionlatest"):
+        #     versions.append(psversionlatest)
+        # if coversionlatest := self._get_data_value("coversionlatest"):
+        #     versions.append(coversionlatest)
+
+        if versions:
+            return ":".join(versions)
+        return None
 
     @property
     def firmware_update_available(self) -> bool:
         """Checks if there is new firmware available for the device."""
-        if (
-            not self.supports_command("firmware_update")
-            or not self.firmware_version
-            or not self.latest_firmware_version
-        ):
-            return False
+        if self.supports_command("firmware_update") and self._get_data_value(
+            "upd_state"
+        ) not in ["None", "0"]:
+            return True
+        # if self.supports_command("p9s_fw") and self._get_data_value(
+        #     "p9s_upd_state"
+        # ) not in ["None", "0"]:
+        #     return True
+        # if self.supports_command("ps_fw") and self._get_data_value(
+        #     "ps_upd_state"
+        # ) not in ["None", "0"]:
+        #     return True
+        # if self.supports_command("co_fw") and self._get_data_value(
+        #     "co_upd_state"
+        # ) not in ["None", "0"]:
+        #     return True
 
-        return self._get_data_value("upd_state") not in ["None", "0"]
+        return False
 
     async def update_firmware(self) -> bool:
         """Updates the firmware on the device."""

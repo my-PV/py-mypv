@@ -8,6 +8,11 @@
       "name": "Check Firmware Update",
       "type": "any"
     },
+    "co_fw": {
+      "firmware": ">=a0020000",
+      "name": "Co-controller Update",
+      "type": "any"
+    },
     "factory_reset": {
       "advanced": true,
       "name": "Factory Reset",
@@ -21,6 +26,11 @@
     "firmware_update": {
       "firmware": ">=a0020000",
       "name": "Firmware Update",
+      "type": "any"
+    },
+    "ps_fw": {
+      "firmware": ">=a0020000",
+      "name": "Power Section Update",
       "type": "any"
     },
     "reboot_device": {
@@ -41,7 +51,11 @@
       "type": "boolean"
     },
     "coversion": {
-      "name": "Co-controller version",
+      "name": "Co-controller Version",
+      "type": "string"
+    },
+    "coversionlatest": {
+      "name": "Latest Co-controller Version",
       "type": "string"
     },
     "ctrlstate": {
@@ -99,6 +113,10 @@
     },
     "psversion": {
       "name": "Power Section Version",
+      "type": "string"
+    },
+    "psversionlatest": {
+      "name": "Latest Power Section Version",
       "type": "string"
     },
     "screen_mode_flag": {
