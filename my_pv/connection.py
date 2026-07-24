@@ -16,7 +16,6 @@
 This file defines the different connection methods the my-PV library supports.
 """
 
-import asyncio
 import json
 import logging
 import ssl
@@ -131,7 +130,7 @@ class MyPVHTTPConnection(MyPVConnection):
             if isinstance(exc.os_error, ConnectionRefusedError):
                 raise MyPVTooManyRequestsError() from exc
             raise MyPVConnectionError() from exc
-        except (ClientError, asyncio.TimeoutError) as exc:
+        except (ClientError, TimeoutError) as exc:
             await self.close()
             raise MyPVConnectionError() from exc
 
@@ -180,7 +179,7 @@ class MyPVHTTPConnection(MyPVConnection):
                 response.status,
                 response_body,
             )
-        except (ClientError, asyncio.TimeoutError) as exc:
+        except (ClientError, TimeoutError) as exc:
             logger.debug(exc)
         finally:
             if success:
@@ -251,7 +250,7 @@ class MyPVHTTPConnection(MyPVConnection):
             if isinstance(exc.os_error, ConnectionRefusedError):
                 raise MyPVTooManyRequestsError() from exc
             raise MyPVConnectionError() from exc
-        except (ClientError, asyncio.TimeoutError) as exc:
+        except (ClientError, TimeoutError) as exc:
             await self.close()
             raise MyPVConnectionError() from exc
 
@@ -352,7 +351,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
             if isinstance(exc.os_error, ConnectionRefusedError):
                 raise MyPVTooManyRequestsError() from exc
             raise MyPVConnectionError() from exc
-        except (ClientError, asyncio.TimeoutError) as exc:
+        except (ClientError, TimeoutError) as exc:
             await self.close()
             raise MyPVConnectionError() from exc
 
@@ -402,7 +401,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
             if isinstance(exc.os_error, ConnectionRefusedError):
                 raise MyPVTooManyRequestsError() from exc
             raise MyPVConnectionError() from exc
-        except (ClientError, asyncio.TimeoutError) as exc:
+        except (ClientError, TimeoutError) as exc:
             await self.close()
             raise MyPVConnectionError() from exc
 
@@ -546,7 +545,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
                 response.status,
                 response_body,
             )
-        except (ClientError, asyncio.TimeoutError) as exc:
+        except (ClientError, TimeoutError) as exc:
             logger.debug(exc)
         finally:
             if success:
@@ -593,7 +592,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
                 response_body,
             )
             raise MyPVConnectionError() from exc
-        except (ClientError, asyncio.TimeoutError) as exc:
+        except (ClientError, TimeoutError) as exc:
             await self.close()
             raise MyPVConnectionError() from exc
 

@@ -384,7 +384,7 @@ class MyPVDevice(ABC):
         return True
 
     def supports_configuration(self, key: str) -> bool:
-        if key not in self._setup_values.keys():
+        if key not in self._setup_values:
             return False
         if (
             key in self._device_config["setup"]
@@ -393,15 +393,12 @@ class MyPVDevice(ABC):
             in [False, self.advanced]
         ):
             return True
-        if (
+        return (
             key in self._device_config["data"]
             and not self._device_config["data"][key].get("readonly", True)
             and self._device_config["data"][key].get("advanced", False)
             in [False, self.advanced]
-        ):
-            return True
-
-        return False
+        )
 
     def get_setup_configurations(self) -> dict[str, dict[str, Any]]:
         """Gets the configuration of the available setup parameters."""
@@ -459,7 +456,7 @@ class MyPVDevice(ABC):
         return value
 
     def supports_data(self, key: str) -> bool:
-        if key not in self._data_values.keys():
+        if key not in self._data_values:
             return False
         if (
             key in ["wifi_signal", "wifi_signal_strength"]
@@ -473,15 +470,13 @@ class MyPVDevice(ABC):
             in [False, self.advanced]
         ):
             return True
-        if (
+
+        return (
             key in self._device_config["setup"]
             and self._device_config["setup"][key].get("readonly", False)
             and self._device_config["setup"][key].get("advanced", False)
             in [False, self.advanced]
-        ):
-            return True
-
-        return False
+        )
 
     def get_data_configurations(self) -> dict[str, dict[str, Any]]:
         """Gets the configuration of the available device data."""
