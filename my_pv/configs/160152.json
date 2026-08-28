@@ -14,7 +14,8 @@
       "options": {
         "1": "Hot water 3.5 kW",
         "3": "Hot water 3.5 kW + 3 kW"
-      }
+      },
+      "type": "enumeration"
     }
   }
 }
