@@ -19,6 +19,16 @@
         "5": "AUX-Relais"
       }
     },
+    "compmode": {
+      "advanced": true,
+      "type": "enumeration",
+      "options": {
+        "0": "AC ELWA 2 3.5 kW",
+        "1": "AC ELWA-E emulation 3.5 kW",
+        "2": "AC ELWA-E emulation 3 kW",
+        "3": "AC ELWA 2 3 kW"
+      }
+    },
     "mainmode": {
       "firmware": ">=e0001000",
       "options": {

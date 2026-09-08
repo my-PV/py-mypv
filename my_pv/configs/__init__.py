@@ -75,8 +75,6 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
                 config = _deep_merge(config, json.loads(text))
             else:
                 logger.warning("Empty config file %s", config_file)
-        except FileNotFoundError:
-            logger.warning("Non existing config file %s", config_file)
         except JSONDecodeError:
             logger.warning("Invalid config file %s", config_file)
 
