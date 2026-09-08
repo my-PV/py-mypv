@@ -709,7 +709,7 @@ class MyPVLocalDevice(MyPVDevice):
             if connection.mypv_dev:
                 self._serial_number = connection.mypv_dev["sn"]
                 await self._read_config()
-                if name in self._device_config:
+                if "name" in self._device_config:
                     self._model = self._device_config["name"]
                 else:
                     self._model = connection.mypv_dev.get("device")
