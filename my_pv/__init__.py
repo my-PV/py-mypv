@@ -24,7 +24,6 @@ from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any
 
-
 from .configs import read_config
 from .connection import (
     MyPVCloudConnection,
