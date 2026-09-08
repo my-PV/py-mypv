@@ -58,3 +58,6 @@ ignore_missing_imports = true
 
 [tool.codespell]
 ignore-words-list = "coversion"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

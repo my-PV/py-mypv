@@ -45,3 +45,9 @@ class MyPVNotSupportedError(MyPVException):
     """
     My-PV functionality not supported error.
     """
+
+
+class MyPVDeviceNotSupportedError(MyPVNotSupportedError):
+    """
+    My-PV device not supported error.
+    """

@@ -24,8 +24,6 @@ from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any
 
-from my_pv.exceptions import MyPVConnectionError
-
 from .configs import read_config
 from .connection import (
     MyPVCloudConnection,
@@ -34,7 +32,11 @@ from .connection import (
     MyPVHTTPSConnection,
     MyPVTooManyRequestsError,
 )
-from .exceptions import MyPVNotSupportedError
+from .exceptions import (
+    MyPVConnectionError,
+    MyPVDeviceNotSupportedError,
+    MyPVNotSupportedError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +123,11 @@ class MyPVDevice(ABC):
             mac_address = re.sub("[^0-9a-f]", "", mac_address)
             mac_address = ":".join(mac_address[i : i + 2] for i in range(0, 12, 2))
             self._mac_address = mac_address
+
+        if self.serial_number.startswith(
+            ("160150", "160151", "160152")
+        ) and setup_values.get("compmode") not in (None, 0):
+            raise MyPVDeviceNotSupportedError(self.serial_number)
 
         match setup_values.get("mainmode"):
             case 1:
@@ -319,7 +326,10 @@ class MyPVDevice(ABC):
         return self._mac_address
 
     async def _read_config(self) -> None:
-        self._device_config = await read_config(self._serial_number)
+        try:
+            self._device_config = await read_config(self.serial_number)
+        except FileNotFoundError as ex:
+            raise MyPVDeviceNotSupportedError(self.serial_number) from ex
 
     async def fetch_data(self) -> bool:
         """
@@ -704,7 +714,10 @@ class MyPVLocalDevice(MyPVDevice):
             if connection.mypv_dev:
                 self._serial_number = connection.mypv_dev["sn"]
                 await self._read_config()
-                self._model = self._device_config["name"]
+                if "name" in self._device_config:
+                    self._model = self._device_config["name"]
+                else:
+                    self._model = connection.mypv_dev.get("device")
                 self._firmware_version = connection.mypv_dev.get("fwversion")
 
         try:
