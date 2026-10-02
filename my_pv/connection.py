@@ -16,6 +16,9 @@ This file defines the different connection methods the my-PV library supports.
 """
 
 from abc import ABC, abstractmethod
+import asyncio
+from collections.abc import Callable, Coroutine
+import functools
 import json
 import logging
 import ssl
@@ -90,6 +93,25 @@ class MyPVConnection(ABC):
         return str(self.uri)
 
 
+def _handle_rate_limiting[T](
+    func: Callable[..., Coroutine[Any, Any, T]],
+) -> Callable[..., Coroutine[Any, Any, T]]:
+    @functools.wraps(func)
+    async def wrapper(self, *args: Any, **kwargs: Any) -> T:
+        async with self._request_lock:
+            fails = 0
+            while True:
+                try:
+                    return await func(self, *args, **kwargs)
+                except MyPVTooManyRequestsError:
+                    logger.warning("Device is rate limiting")
+                    fails += 1
+                    if fails > 5:
+                        raise
+                    await asyncio.sleep(0.5)
+
+    return wrapper
+
 class MyPVHTTPConnection(MyPVConnection):
     """my-PV connection using HTTP on port 80."""
 
@@ -103,11 +125,15 @@ class MyPVHTTPConnection(MyPVConnection):
 
     _mypv_dev = None
 
+    _request_lock: asyncio.Lock
+
     def __init__(self, host: str) -> None:
         """Initializes a my-PV HTTP connect."""
         assert host is not None
 
         self._host = host
+
+        self._request_lock = asyncio.Lock()
 
     async def _auth(self, session: ClientSession) -> bool:
         """The older HTTP only firmware doesn't yet support authentication."""
@@ -267,16 +293,19 @@ class MyPVHTTPConnection(MyPVConnection):
         if not self._setup_url:
             return None
 
-        return await self._get(self._setup_url)
+        async with self._request_lock:
+            return await self._get(self._setup_url)
 
     async def fetch_data(self) -> dict[str, Any] | None:
         """Retrieves the device data."""
         if not self._data_url:
             return None
 
-        data = await self._get(self._data_url)
-        return {key.lower(): value for key, value in data.items()}
+        async with self._request_lock:
+            data = await self._get(self._data_url)
+            return {key.lower(): value for key, value in data.items()}
 
+    @_handle_rate_limiting
     async def set_setup_value(self, key: str, value: Any) -> bool:
         """Sets the setup value for the given key."""
         if not self._setup_url:
@@ -287,6 +316,8 @@ class MyPVHTTPConnection(MyPVConnection):
         response = await self._get(self._setup_url, data)
         return response.get(key) == value
 
+
+    @_handle_rate_limiting
     async def send_command(self, key: str, value: Any) -> bool:
         """Sends a command to the device."""
         if not self._setup_url:
