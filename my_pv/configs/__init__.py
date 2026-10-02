@@ -29,12 +29,13 @@ Configuration files for my-PV devices.
 210900 - HEA•THOR IoT 9 kW
 """
 
-import asyncio
 import importlib.resources
 import json
 import logging
 from json.decoder import JSONDecodeError
 from typing import Any
+
+import aiofiles
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,8 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
     for config_file in config_files:
         try:
             path = importlib.resources.files("my_pv.configs").joinpath(config_file)
-            data = await asyncio.to_thread(lambda: json.loads(path.read_text(encoding="utf-8")))
+            async with aiofiles.open(path, encoding="utf-8") as file:
+                data = json.loads(await file.read())
 
             if not isinstance(data, dict):
                 logger.error("Invalid configuration file %s", config_file)
