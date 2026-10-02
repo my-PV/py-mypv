@@ -462,8 +462,8 @@ class MyPVDevice(ABC):
         if not self.supports_configuration(key):
             raise MyPVNotSupportedError(key)
 
-        # Disable all but Device Mode when Device Mode is Off
-        if key != "devmode" and self._setup_values.get("devmode") == 0:
+        # Disable all but Device Mode and Target Temperature when Device Mode is Off
+        if key not in  ["devmode", "ww1target"] and self._setup_values.get("devmode") == 0:
             return None
 
         # Disable Maximum Power when Main Mode is Hot water 3.5 kW + 3 kW on AC ELWA 2
@@ -592,8 +592,8 @@ class MyPVDevice(ABC):
         if not self.supports_configuration(key):
             raise MyPVNotSupportedError(key)
 
-        # Disable all but Device Mode when Device Mode is Off
-        if key != "devmode" and self._setup_values.get("devmode") == 0:
+        # Disable all but Device Mode and target temperature when Device Mode is Off
+        if key not in ["devmode", "ww1target"] and self._setup_values.get("devmode") == 0:
             return False
 
         # Disable Boost Active when Boost Mode is Off
