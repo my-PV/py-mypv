@@ -1,5 +1,4 @@
-"""
-   Copyright 2026 my-PV GmbH, Austria
+"""Copyright 2026 my-PV GmbH, Austria.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -18,36 +17,24 @@ This file defines the different exceptions and errors the my-PV library can rais
 
 
 class MyPVException(Exception):
-    """
-    Generic my-PV exception.
-    """
+    """Generic my-PV exception."""
 
 
 class MyPVConnectionError(MyPVException):
-    """
-    my-PV connection error.
-    """
+    """my-PV connection error."""
 
 
 class MyPVTooManyRequestsError(MyPVConnectionError):
-    """
-    my-PV too many requests error.
-    """
+    """my-PV too many requests error."""
 
 
 class MyPVAuthenticationError(MyPVException):
-    """
-    my-PV authentication error.
-    """
+    """my-PV authentication error."""
 
 
 class MyPVNotSupportedError(MyPVException):
-    """
-    My-PV functionality not supported error.
-    """
+    """My-PV functionality not supported error."""
 
 
 class MyPVDeviceNotSupportedError(MyPVNotSupportedError):
-    """
-    My-PV device not supported error.
-    """
+    """My-PV device not supported error."""

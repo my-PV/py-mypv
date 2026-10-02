@@ -1,5 +1,4 @@
-"""
-   Copyright 2026 my-PV GmbH, Austria
+"""Copyright 2026 my-PV GmbH, Austria.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -16,23 +15,23 @@
 Configuration files for my-PV devices.
 
 140100 - SOL•THOR
-160150 – AC ELWA 2
-160151 – AC ELWA 2
-160152 – AC ELWA 2 3 kW
-200100 – AC•THOR
-200103 – AC•THOR i
+160150 - AC ELWA 2
+160151 - AC ELWA 2
+160152 - AC ELWA 2 3 kW
+200100 - AC•THOR
+200103 - AC•THOR i
 200110 - AC•THOR Viessmann
-200113 – AC•THOR i Viessmann
-200300 – AC•THOR 9s
-200310 – AC•THOR 9s Viessmann
+200113 - AC•THOR i Viessmann
+200300 - AC•THOR 9s
+200310 - AC•THOR 9s Viessmann
 210300 - HEA•THOR IoT 3,5 kW
 210900 - HEA•THOR IoT 9 kW
 """
 
 import importlib.resources
 import json
-import logging
 from json.decoder import JSONDecodeError
+import logging
 from typing import Any
 
 import aiofiles
@@ -86,12 +85,13 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
         except (IsADirectoryError, PermissionError):
             logger.exception("Configuration file %s not accessible", config_file)
         except UnicodeDecodeError:
-            logger.exception("Invalid configuration file %s, Unicode error", config_file)
+            logger.exception(
+                "Invalid configuration file %s, Unicode error", config_file
+            )
         except JSONDecodeError:
             logger.warning("Invalid config file %s", config_file)
 
     if config is not None:
-        config = {key: val for key, val in config.items() if val is not None}
-        return config
+        return {key: val for key, val in config.items() if val is not None}
 
     return {}

@@ -51,7 +51,7 @@ async def test_all_files(model: str):
     setup_config = device_config["setup"]
     for config in setup_config.values():
         assert config["type"] in ("boolean", "number", "string", "enumeration")
-        if (config["type"] == "number"):
+        if config["type"] == "number":
             assert "min" in config or "max" in config
         if config["type"] in ("enum"):
             assert config["options"]
@@ -65,23 +65,12 @@ async def test_unknown_model():
 
 def test_deep_merge():
     """Test deep merging two dictionaties."""
-    dict1 = {
-        "commands": {
-            "bststrt": {
-                "name": "Manual Boost",
-                "type": "boolean"
-            }
-        }
-    }
+    dict1 = {"commands": {"bststrt": {"name": "Manual Boost", "type": "boolean"}}}
     dict2 = {
         "setup": {
             "bstmode": {
-                "options": {
-                    "0": "Off",
-                    "1": "On",
-                    "3": "Relais"
-                },
-                "type": "enumeration"
+                "options": {"0": "Off", "1": "On", "3": "Relais"},
+                "type": "enumeration",
             }
         }
     }
@@ -92,44 +81,27 @@ def test_deep_merge():
 
 def test_deep_merge_updated_value():
     """Test deep merging two dictionaties with an updated value."""
-    dict1 = {
-        "setup": {
-            "bstmode": {
-                "name": "Boost Mode",
-                "type": "boolean"
-            }
-        }
-    }
+    dict1 = {"setup": {"bstmode": {"name": "Boost Mode", "type": "boolean"}}}
     dict2 = {
         "setup": {
             "bstmode": {
-                "options": {
-                    "0": "Off",
-                    "1": "On",
-                    "3": "Relais"
-                },
-                "type": "enumeration"
+                "options": {"0": "Off", "1": "On", "3": "Relais"},
+                "type": "enumeration",
             }
         }
     }
     configs._deep_merge(dict1, dict2)
     assert dict1["setup"]["bstmode"]["type"] == "enumeration"
-    assert dict1["setup"]["bstmode"]["options"] == {"0": "Off", "1": "On", "3": "Relais"}
+    assert dict1["setup"]["bstmode"]["options"] == {
+        "0": "Off",
+        "1": "On",
+        "3": "Relais",
+    }
+
 
 def test_deep_merge_deleted_value():
     """Test deep merging two dictionaties with a deleted value."""
-    dict1 = {
-        "setup": {
-            "bstmode": {
-                "name": "Boost Mode",
-                "type": "boolean"
-            }
-        }
-    }
-    dict2 = {
-        "setup": {
-            "bstmode": None
-        }
-    }
+    dict1 = {"setup": {"bstmode": {"name": "Boost Mode", "type": "boolean"}}}
+    dict2 = {"setup": {"bstmode": None}}
     configs._deep_merge(dict1, dict2)
     assert "bstmode" not in dict1["setup"]

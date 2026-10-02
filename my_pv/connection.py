@@ -1,5 +1,4 @@
-"""
-   Copyright 2026 my-PV GmbH, Austria
+"""Copyright 2026 my-PV GmbH, Austria.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -16,11 +15,11 @@
 This file defines the different connection methods the my-PV library supports.
 """
 
+from abc import ABC, abstractmethod
 import json
 import logging
 import ssl
 import time
-from abc import ABC, abstractmethod
 from typing import Any, Final
 from urllib.parse import urlencode, urlunsplit
 
@@ -44,9 +43,7 @@ DONT_ENCODE = "-_.!~*'()"
 
 
 class MyPVConnection(ABC):
-    """
-    my-PV Connection base class for connecting to my-PV devices.
-    """
+    """my-PV Connection base class for connecting to my-PV devices."""
 
     @abstractmethod
     async def open(self) -> bool:
@@ -85,7 +82,7 @@ class MyPVConnection(ABC):
 
     @property
     def uri(self) -> str | None:
-        """Returns the URI the connection is connected to"""
+        """Returns the URI the connection is connected to."""
         return None
 
     def __str__(self) -> str:
@@ -107,6 +104,7 @@ class MyPVHTTPConnection(MyPVConnection):
     _mypv_dev = None
 
     def __init__(self, host: str) -> None:
+        """Initializes a my-PV HTTP connect."""
         assert host is not None
 
         self._host = host
@@ -125,18 +123,19 @@ class MyPVHTTPConnection(MyPVConnection):
                 raise MyPVTooManyRequestsError(response.reason)
         except ssl.SSLCertVerificationError as exc:
             # Connection is redirected to SSL, authentication is needed.
-            raise MyPVAuthenticationError() from exc
+            raise MyPVAuthenticationError from exc
         except ClientConnectorError as exc:
             if isinstance(exc.os_error, ConnectionRefusedError):
-                raise MyPVTooManyRequestsError() from exc
-            raise MyPVConnectionError() from exc
+                raise MyPVTooManyRequestsError from exc
+            raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
             await self.close()
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
 
         return True
 
     async def open(self) -> bool:
+        """Opens the connection to the device."""
         # Close the existing connection if still open
         await self.close()
 
@@ -174,7 +173,7 @@ class MyPVHTTPConnection(MyPVConnection):
 
                     success = True
         except json.JSONDecodeError:
-            logger.error(
+            logger.exception(
                 "Invallid JSON for response status %i: %s",
                 response.status,
                 response_body,
@@ -191,12 +190,14 @@ class MyPVHTTPConnection(MyPVConnection):
         return success
 
     def is_open(self) -> bool:
+        """True if the connection is open else False."""
         if self._session is None:
             return False
 
         return not self._session.closed
 
     async def close(self) -> bool:
+        """Closes the connection to the device."""
         if self._session is not None:
             await self._session.close()
             self._session = None
@@ -207,7 +208,7 @@ class MyPVHTTPConnection(MyPVConnection):
         self, url: str, data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         if not self._session or (not self.is_open() and not await self.open()):
-            raise MyPVConnectionError()
+            raise MyPVConnectionError
 
         if data:
             query = urlencode(data, safe=DONT_ENCODE)
@@ -240,33 +241,36 @@ class MyPVHTTPConnection(MyPVConnection):
                 response_body,
             )
         except json.JSONDecodeError as exc:
-            logger.error(
+            logger.exception(
                 "Invallid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
         except ClientConnectorError as exc:
             if isinstance(exc.os_error, ConnectionRefusedError):
-                raise MyPVTooManyRequestsError() from exc
-            raise MyPVConnectionError() from exc
+                raise MyPVTooManyRequestsError from exc
+            raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
             await self.close()
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
 
         return {}
 
     @property
     def mypv_dev(self) -> dict[str, Any] | None:
+        """Returns the mypv_dev details."""
         return self._mypv_dev
 
     async def fetch_setup(self) -> dict[str, Any] | None:
+        """Retrieves the device setup."""
         if not self._setup_url:
             return None
 
         return await self._get(self._setup_url)
 
     async def fetch_data(self) -> dict[str, Any] | None:
+        """Retrieves the device data."""
         if not self._data_url:
             return None
 
@@ -274,6 +278,7 @@ class MyPVHTTPConnection(MyPVConnection):
         return {key.lower(): value for key, value in data.items()}
 
     async def set_setup_value(self, key: str, value: Any) -> bool:
+        """Sets the setup value for the given key."""
         if not self._setup_url:
             return False
 
@@ -283,6 +288,7 @@ class MyPVHTTPConnection(MyPVConnection):
         return response.get(key) == value
 
     async def send_command(self, key: str, value: Any) -> bool:
+        """Sends a command to the device."""
         if not self._setup_url:
             return False
 
@@ -294,6 +300,7 @@ class MyPVHTTPConnection(MyPVConnection):
 
     @property
     def uri(self) -> str:
+        """Returns the URI the connection is connected to."""
         return urlunsplit([self._PROTOCOL, self._host, "/", None, None])
 
 
@@ -306,6 +313,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
     _password: str
 
     def __init__(self, host: str, password: str) -> None:
+        """Initializes a my-PV HTTPS connect."""
         assert host is not None
         assert password is not None
 
@@ -341,26 +349,26 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                     response_body,
                 )
         except json.JSONDecodeError as exc:
-            logger.error(
+            logger.exception(
                 "Invallid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
         except ClientConnectorError as exc:
             if isinstance(exc.os_error, ConnectionRefusedError):
-                raise MyPVTooManyRequestsError() from exc
-            raise MyPVConnectionError() from exc
+                raise MyPVTooManyRequestsError from exc
+            raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
             await self.close()
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
 
         # Authentication failed.
-        raise MyPVAuthenticationError()
+        raise MyPVAuthenticationError
 
     async def _post(self, url: str, data: dict[str, Any]) -> dict[str, Any]:
         if not self._session or (not self.is_open() and not await self.open()):
-            raise MyPVConnectionError()
+            raise MyPVConnectionError
 
         data = urlencode(data, safe=DONT_ENCODE)
 
@@ -391,23 +399,24 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                 response_body,
             )
         except json.JSONDecodeError as exc:
-            logger.error(
+            logger.exception(
                 "Invallid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
         except ClientConnectorError as exc:
             if isinstance(exc.os_error, ConnectionRefusedError):
-                raise MyPVTooManyRequestsError() from exc
-            raise MyPVConnectionError() from exc
+                raise MyPVTooManyRequestsError from exc
+            raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
             await self.close()
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
 
         return {}
 
     async def set_setup_value(self, key: str, value: Any) -> bool:
+        """Sets the setup value for the given key."""
         if not self._setup_url:
             return False
 
@@ -417,6 +426,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         return response.get(key) == value
 
     async def send_command(self, key: str, value: Any) -> bool:
+        """Sends a command to the device."""
         if not self._setup_url:
             return False
 
@@ -442,6 +452,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
     def __init__(
         self, serial_number: str, api_token: str, *, host: str | None = None
     ) -> None:
+        """Initializes a my-PV Cloud connect."""
         assert serial_number is not None
         assert api_token is not None
 
@@ -454,6 +465,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         self._api_token = api_token
 
     async def open(self) -> bool:
+        """Opens the connection to the device."""
         # Close the existing connection if still open
         await self.close()
 
@@ -540,7 +552,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
 
                 success = True
         except json.JSONDecodeError:
-            logger.error(
+            logger.exception(
                 "Invallid JSON for response status %i: %s",
                 response.status,
                 response_body,
@@ -558,7 +570,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
 
     async def _put(self, url: str, data: str) -> bool:
         if not self._session or (not self.is_open() and not await self.open()):
-            raise MyPVConnectionError()
+            raise MyPVConnectionError
 
         logger.debug("PUT %s %s", url, data)
 
@@ -586,29 +598,32 @@ class MyPVCloudConnection(MyPVHTTPConnection):
                 response_body,
             )
         except json.JSONDecodeError as exc:
-            logger.error(
+            logger.exception(
                 "Invallid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
             await self.close()
-            raise MyPVConnectionError() from exc
+            raise MyPVConnectionError from exc
 
         return False
 
     @property
     def mypv_dev(self) -> dict[str, Any] | None:
+        """Returns the mypv_dev details."""
         raise NotImplementedError
 
     async def fetch_setup(self) -> dict[str, Any] | None:
+        """Retrieves the device setup."""
         setup = await super().fetch_setup()
         if not setup:
             return None
         return setup.get("setup", {})
 
     async def fetch_data(self) -> dict[str, Any] | None:
+        """Retrieves the device data."""
         data = await super().fetch_data()
         if not data:
             return None
@@ -620,6 +635,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         return data
 
     async def set_setup_value(self, key: str, value: Any) -> bool:
+        """Sets the setup value for the given key."""
         if not self._setup_url:
             return False
 
@@ -628,6 +644,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         return await self._put(self._setup_url, data)
 
     async def send_command(self, key: str, value: Any) -> bool:
+        """Sends a command to the device."""
         if not self._setup_url:
             return False
 
