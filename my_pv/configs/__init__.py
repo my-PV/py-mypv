@@ -13,7 +13,6 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 
-
 Configuration files for my-PV devices.
 
 140100 - SOL•THOR
@@ -41,8 +40,13 @@ logger = logging.getLogger(__name__)
 
 
 def _deep_merge(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
+    """Merges dict2 into dict1. A null in dict2 removes the inherited value."""
     for key, value in dict2.items():
-        if key in dict1 and isinstance(dict1[key], dict) and isinstance(value, dict):
+        if value is None:
+            dict1.pop(key, None)
+        elif isinstance(value, dict):
+            if not isinstance(dict1.get(key), dict):
+                dict1[key] = {}
             _deep_merge(dict1[key], value)
         else:
             dict1[key] = value
@@ -66,15 +70,21 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
     config: dict[str, Any] | None = None
     for config_file in config_files:
         try:
-            text = await asyncio.get_running_loop().run_in_executor(
-                None, importlib.resources.read_text, "my_pv.configs", config_file
-            )
+            path = importlib.resources.files("my_pv.configs").joinpath(config_file)
+            data = await asyncio.to_thread(lambda: json.loads(path.read_text(encoding="utf-8")))
 
-            if text is not None and len(text) > 0:
-                config = {} if config is None else config
-                config = _deep_merge(config, json.loads(text))
+            if not isinstance(data, dict):
+                logger.error("Invalid configuration file %s", config_file)
             else:
-                logger.warning("Empty config file %s", config_file)
+                config = {} if config is None else config
+                config = _deep_merge(config, data)
+        except FileNotFoundError:
+            logger.debug("Configuration file %s not found", config_file)
+            raise
+        except (IsADirectoryError, PermissionError):
+            logger.exception("Configuration file %s not accessible", config_file)
+        except UnicodeDecodeError:
+            logger.exception("Invalid configuration file %s, Unicode error", config_file)
         except JSONDecodeError:
             logger.warning("Invalid config file %s", config_file)
 
