@@ -171,6 +171,21 @@ class MyPVDevice(ABC):
         ):
             self._device_config["setup"].pop("maxpwr", None)
 
+        # Disable AC THOR boost mode and warm water related setup when mainmodes 5 or 6
+        if self.serial_number.startswith(
+            ("200100", "200103", "200110", "200113", "200300", "200310")
+        ) and setup_values.get("mainmode") in [5, 6]:
+            for key in (
+                "bstmode",
+                "bststrt",
+                "ww_boost_h",
+                "ww_targ_h",
+                *_BOOST_SETUP_KEYS,
+            ):
+                self._device_config["setup"].pop(key, None)
+                self._device_config["data"].pop(key, None)
+                self._device_config["commands"].pop(key, None)
+
     @abstractmethod
     async def connect(self) -> bool:
         """Connect to my-PV device.
@@ -484,7 +499,7 @@ class MyPVDevice(ABC):
             return None
 
         # Disable Boost Active when Boost Mode is Off
-        if key in _BOOST_SETUP_KEYS and self._setup_values.get("bstmode") == 0:
+        if key in _BOOST_SETUP_KEYS and self._setup_values.get("bstmode", 0) == 0:
             return None
 
         config = self.get_setup_configuration(key)
@@ -609,7 +624,7 @@ class MyPVDevice(ABC):
             return False
 
         # Disable Boost Active when Boost Mode is Off
-        if key in _BOOST_SETUP_KEYS and self._setup_values.get("bstmode") == 0:
+        if key in _BOOST_SETUP_KEYS and self._setup_values.get("bstmode", 0) == 0:
             return False
 
         config = self.get_setup_configuration(key)
