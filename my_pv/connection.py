@@ -21,13 +21,16 @@ from collections.abc import Callable, Coroutine
 import functools
 import json
 import logging
-import ssl
 import time
 from typing import Any, Final
 from urllib.parse import urlencode, urlunsplit
 
 from aiohttp import ClientSession, ClientTimeout
-from aiohttp.client_exceptions import ClientConnectorError, ClientError
+from aiohttp.client_exceptions import (
+    ClientConnectorCertificateError,
+    ClientConnectorError,
+    ClientError,
+)
 
 from my_pv.exceptions import (
     MyPVAuthenticationError,
@@ -130,8 +133,6 @@ class MyPVHTTPConnection(MyPVConnection):
 
     def __init__(self, host: str) -> None:
         """Initializes a my-PV HTTP connect."""
-        assert host is not None
-
         self._host = host
 
         self._request_lock = asyncio.Lock()
@@ -143,12 +144,11 @@ class MyPVHTTPConnection(MyPVConnection):
         logger.debug("GET %s", auth_url)
 
         try:
-            response = await session.get(auth_url, ssl=True)
-
-            if response.status == 429:
-                logger.error(response.reason)
-                raise MyPVTooManyRequestsError(response.reason)
-        except ssl.SSLCertVerificationError as exc:
+            async with session.get(auth_url, ssl=True) as response:
+                if response.status == 429:
+                    logger.error(response.reason)
+                    raise MyPVTooManyRequestsError(response.reason)
+        except ClientConnectorCertificateError as exc:
             # Connection is redirected to SSL, authentication is needed.
             raise MyPVAuthenticationError from exc
         except ClientConnectorError as exc:
@@ -156,7 +156,7 @@ class MyPVHTTPConnection(MyPVConnection):
                 raise MyPVTooManyRequestsError from exc
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
-            await self.close()
+            await session.close()
             raise MyPVConnectionError from exc
 
         return True
@@ -234,7 +234,7 @@ class MyPVHTTPConnection(MyPVConnection):
     async def _get(
         self, url: str, data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        if not self._session or (not self.is_open() and not await self.open()):
+        if (not self.is_open() and not await self.open()) or self._session is None:
             raise MyPVConnectionError
 
         if data:
@@ -345,9 +345,6 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
 
     def __init__(self, host: str, password: str) -> None:
         """Initializes a my-PV HTTPS connect."""
-        assert host is not None
-        assert password is not None
-
         super().__init__(host)
 
         self._password = password
@@ -391,14 +388,14 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                 raise MyPVTooManyRequestsError from exc
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
-            await self.close()
+            await session.close()
             raise MyPVConnectionError from exc
 
         # Authentication failed.
         raise MyPVAuthenticationError
 
     async def _post(self, url: str, data: dict[str, Any]) -> dict[str, Any]:
-        if not self._session or (not self.is_open() and not await self.open()):
+        if (not self.is_open() and not await self.open()) or self._session is None:
             raise MyPVConnectionError
 
         encoded_data = urlencode(data, safe=DONT_ENCODE)
@@ -448,6 +445,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
 
         return {}
 
+    @_handle_rate_limiting
     async def set_setup_value(self, key: str, value: Any) -> bool:
         """Sets the setup value for the given key."""
         if not self._setup_url:
@@ -458,6 +456,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         response = await self._post(self._setup_url, data)
         return response.get(key) == value
 
+    @_handle_rate_limiting
     async def send_command(self, key: str, value: Any) -> bool:
         """Sends a command to the device."""
         if not self._setup_url:
@@ -524,7 +523,9 @@ class MyPVCloudConnection(MyPVHTTPConnection):
 
             response = await session.get(is_online_url)
             response_body = await response.text()
-            response_json = json.loads(response_body)
+            response_json = {}
+            if response.content_type == "application/json":
+                response_json = json.loads(response_body)
 
             if response.status == 401:
                 raise MyPVAuthenticationError(response_json.get("msg"))
@@ -602,7 +603,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         return success
 
     async def _put(self, url: str, data: str) -> bool:
-        if not self._session or (not self.is_open() and not await self.open()):
+        if (not self.is_open() and not await self.open()) or self._session is None:
             raise MyPVConnectionError
 
         logger.debug("PUT %s %s", url, data)

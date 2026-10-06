@@ -356,7 +356,7 @@ ignore_missing_imports = true
 [tool.ruff]
 # https://docs.astral.sh/ruff/settings/
 # Formats like black (line length 88) and sorts imports like isort.
-target-version = "py313"
+target-version = "py314"
 extend-exclude = ["my_pv/_version.py"]
 
 [tool.ruff.lint]
@@ -504,7 +504,7 @@ combine-as-imports = true
 split-on-trailing-comma = false
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D", "SLF", "TID252"]
+"tests/**" = ["D", "SLF", "TID251", "TID252"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 25

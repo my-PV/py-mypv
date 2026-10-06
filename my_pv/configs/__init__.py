@@ -28,13 +28,12 @@ Configuration files for my-PV devices.
 210900 - HEA•THOR IoT 9 kW
 """
 
+import asyncio
 import importlib.resources
 import json
 from json.decoder import JSONDecodeError
 import logging
 from typing import Any
-
-import aiofiles
 
 logger = logging.getLogger(__name__)
 
@@ -71,25 +70,24 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
     for config_file in config_files:
         try:
             path = importlib.resources.files("my_pv.configs").joinpath(config_file)
-            async with aiofiles.open(path, encoding="utf-8") as file:
-                data = json.loads(await file.read())
+            data = json.loads(await asyncio.to_thread(path.read_text, encoding="utf-8"))
 
             if not isinstance(data, dict):
-                logger.error("Invalid configuration file %s", config_file)
+                logger.error("Invallid configuration file %s", config_file)
             else:
                 config = {} if config is None else config
                 config = _deep_merge(config, data)
         except FileNotFoundError:
             logger.debug("Configuration file %s not found", config_file)
             raise
-        except (IsADirectoryError, PermissionError):
+        except IsADirectoryError, PermissionError:
             logger.exception("Configuration file %s not accessible", config_file)
         except UnicodeDecodeError:
             logger.exception(
-                "Invalid configuration file %s, Unicode error", config_file
+                "Invallid configuration file %s, Unicode error", config_file
             )
         except JSONDecodeError:
-            logger.warning("Invalid config file %s", config_file)
+            logger.warning("Invallid config file %s", config_file)
 
     if config is not None:
         return {key: val for key, val in config.items() if val is not None}

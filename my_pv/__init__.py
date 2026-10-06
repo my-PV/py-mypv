@@ -22,7 +22,7 @@ from enum import StrEnum
 import logging
 import re
 import time
-from typing import Any
+from typing import Any, Final
 
 from .configs import read_config
 from .connection import (
@@ -30,29 +30,30 @@ from .connection import (
     MyPVConnection,
     MyPVHTTPConnection,
     MyPVHTTPSConnection,
-    MyPVTooManyRequestsError,
 )
 from .exceptions import (
+    MyPVAuthenticationError,
     MyPVConnectionError,
     MyPVDeviceNotSupportedError,
     MyPVNotSupportedError,
+    MyPVTooManyRequestsError,
 )
 
 logger = logging.getLogger(__name__)
 
 CLOUD_FRONTEND = "https://live.my-pv.com/"
 
-_IGNORED_SETUP_KEYS = [
+_IGNORED_SETUP_KEYS: Final[list[str]] = [
     "fwversion",
     "psversion",
     "hwvers",
     "serialno",
     "macadr",
 ]
-_IGNORED_DATA_KEYS = [
+_IGNORED_DATA_KEYS: Final[list[str]] = [
     "device",
 ]
-_BOOST_SETUP_KEYS = [
+_BOOST_SETUP_KEYS: Final[list[str]] = [
     "boostactive",
     "bsttof1",
     "bsttof2",
@@ -132,11 +133,7 @@ class MyPVDevice(ABC):
             raise MyPVDeviceNotSupportedError(self.serial_number)
 
         match setup_values.get("mainmode"):
-            case 1:
-                self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
-            case 2:
-                self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
-            case 3:
+            case 1 | 2 | 3:
                 self._main_modes = (MyPVDeviceMainMode.HOT_WATER,)
             case 4:
                 self._main_modes = (
@@ -165,7 +162,7 @@ class MyPVDevice(ABC):
             self.serial_number.startswith(("160150", "160151", "160152"))
             and setup_values.get("mainmode") == 1
         ):
-            del self._device_config["setup"]["bstmode"].get("options", {})["5"]
+            self._device_config["setup"]["bstmode"].get("options", {}).pop("5", None)
 
     @abstractmethod
     async def connect(self) -> bool:
@@ -189,7 +186,7 @@ class MyPVDevice(ABC):
 
     @property
     def uri(self) -> str | None:
-        """The underlying connection to the my-PV device."""
+        """The underlying connection uri to the my-PV device."""
         return self._uri
 
     async def disconnect(self) -> bool:
@@ -228,7 +225,7 @@ class MyPVDevice(ABC):
 
     @property
     def latest_firmware_version(self) -> str | None:
-        """The device firmware version."""
+        """The device latest available firmware version."""
         return self._get_data_value("fwversionlatest")
 
     @property
@@ -263,7 +260,7 @@ class MyPVDevice(ABC):
 
             # Wait for download to be finished.
             if self._get_data_value("upd_state") in [str(x) for x in range(1, 10)]:
-                timeout = time.time() + 300  # 5 minutes
+                timeout = time.monotonic() + 300  # 5 minutes
                 while True:
                     logger.debug(
                         "Downloading firmware %i%%",
@@ -275,7 +272,7 @@ class MyPVDevice(ABC):
                     if self._get_data_value("upd_state") == "99":
                         logger.debug("Downloading failed")
                         break
-                    if time.time() > timeout:
+                    if time.monotonic() > timeout:
                         logger.debug("Downloading timeout")
                         return False
 
@@ -292,7 +289,7 @@ class MyPVDevice(ABC):
                 await self.send_command("firmware_update")
 
             # Wait for update to be finished.
-            timeout = time.time() + 300  # 5 minutes
+            timeout = time.monotonic() + 300  # 5 minutes
             while True:
                 if self._get_data_value("upd_state") == "0":
                     logger.debug("Update finished")
@@ -300,11 +297,16 @@ class MyPVDevice(ABC):
                 if self._get_data_value("upd_state") == "99":
                     logger.error("Update failed")
                     return False
-                if time.time() > timeout:
+                if time.monotonic() > timeout:
                     logger.debug("Update timeout")
                     return False
 
                 await asyncio.sleep(1)
+                if not self.connected:
+                    # Device reboots during the firmware update, reconnect.
+                    with contextlib.suppress(MyPVConnectionError):
+                        await self.connect()
+
                 with contextlib.suppress(
                     MyPVConnectionError
                 ):  # A connection error is expected as the device will reboot during the firmware update.
@@ -327,9 +329,8 @@ class MyPVDevice(ABC):
         if result is None:
             return False
 
-        comparator = result.group(0)
-        version = result.group(1)
-        version = int(version[1:])
+        comparator = result.group(1)
+        version = int(result.group(2))
 
         fw_version = self._data_values.get("fwversion2_comp")
         if fw_version is None:
@@ -413,10 +414,11 @@ class MyPVDevice(ABC):
         }
 
         if self.supports_command("check_fwupd") and (
-            not self._next_check_fwupd or time.time() > self._next_check_fwupd
+            not self._next_check_fwupd or time.monotonic() > self._next_check_fwupd
         ):
-            await self.send_command("check_fwupd")
-            self._next_check_fwupd = time.time() + 24 * 60 * 60  # Once a  day
+            with contextlib.suppress(MyPVConnectionError):
+                await self.send_command("check_fwupd")
+            self._next_check_fwupd = time.monotonic() + 24 * 60 * 60  # Once a  day
 
         return True
 
@@ -607,6 +609,14 @@ class MyPVDevice(ABC):
         ):
             return False
 
+        # Disable Maximum Power when Main Mode is Hot water 3.5 kW + 3 kW on AC ELWA 2
+        if (
+            key == "maxpwr"
+            and self._setup_values.get("mainmode") == 3
+            and self.serial_number.startswith(("160150", "160151"))
+        ):
+            return False
+
         # Disable Boost Active when Boost Mode is Off
         if key in _BOOST_SETUP_KEYS and self._setup_values.get("bstmode") == 0:
             return False
@@ -634,7 +644,7 @@ class MyPVDevice(ABC):
                     if multiplier := config.get("multiplier"):
                         value = value / multiplier
 
-                    value = int(value)
+                    value = round(value)
                 case "enumeration":
                     if value not in config["options"]:
                         return False
@@ -675,11 +685,13 @@ class MyPVDevice(ABC):
 
         config = self.get_command_configuration(command)
         if config:
+            if value is None and config.get("type") in ("boolean", "number"):
+                return False
+
             match config.get("type"):
                 case "boolean":
                     value = int(value)
                 case "number":
-                    value = int(value)
                     if not config.get("min", 0) <= value <= config.get("max", 0):
                         return False
 
@@ -687,6 +699,8 @@ class MyPVDevice(ABC):
                         value = value * divider
                     if multiplier := config.get("multiplier"):
                         value = value / multiplier
+
+                    value = round(value)
                 case "fixed":
                     value = config.get("value")
                 case "any":
@@ -720,11 +734,11 @@ class MyPVDevice(ABC):
         return self.get_setup_value("devmode") is True
 
     async def turn_on(self) -> bool:
-        """Turns the device off."""
+        """Turns the device on."""
         return await self.set_setup_value("devmode", True)
 
     async def turn_off(self) -> bool:
-        """Turns the device on."""
+        """Turns the device off."""
         return await self.set_setup_value("devmode", False)
 
 
@@ -738,7 +752,8 @@ class MyPVLocalDevice(MyPVDevice):
         self, host: str, password: str | None = None, advanced: bool = False
     ) -> None:
         """Initializes a local connected my-PV device."""
-        assert host is not None
+        if not host:
+            raise ValueError("host is required")
 
         super().__init__(advanced=advanced)
 
@@ -755,7 +770,7 @@ class MyPVLocalDevice(MyPVDevice):
         """
         await self.disconnect()
 
-        connection: MyPVConnection
+        connection: MyPVHTTPConnection
         if self._password:
             connection = MyPVHTTPSConnection(self._host, self._password)
         else:
@@ -765,15 +780,21 @@ class MyPVLocalDevice(MyPVDevice):
         try:
             if not await connection.open():
                 return False
+        except MyPVConnectionError:
+            return False
         finally:
-            if connection.mypv_dev:
-                self._serial_number = connection.mypv_dev["sn"]
-                self._firmware_version = connection.mypv_dev.get("fwversion")
-                await self._read_config()
-                if "name" in self._device_config:
-                    self._model = self._device_config["name"]
-                else:
-                    self._model = connection.mypv_dev.get("device", "")
+            try:
+                if connection.mypv_dev:
+                    self._serial_number = connection.mypv_dev["sn"]
+                    self._firmware_version = connection.mypv_dev.get("fwversion")
+                    await self._read_config()
+                    if "name" in self._device_config:
+                        self._model = self._device_config["name"]
+                    else:
+                        self._model = connection.mypv_dev.get("device", "")
+            except MyPVDeviceNotSupportedError:
+                await connection.close()
+                raise
 
         try:
             # Get the device setup
@@ -786,6 +807,9 @@ class MyPVLocalDevice(MyPVDevice):
         except MyPVConnectionError:
             await connection.close()
             return False
+        except MyPVAuthenticationError, MyPVDeviceNotSupportedError:
+            await connection.close()
+            raise
 
         self._connection = connection
 
@@ -836,6 +860,8 @@ class MyPVCloudDevice(MyPVDevice):
         try:
             if not await connection.open():
                 return False
+        except MyPVConnectionError:
+            return False
         finally:
             await self._read_config()
             self._model = self._device_config["name"]
