@@ -1,33 +1,33 @@
 {
-	"commands": {},
-	"data": {
-		"curr_l1": {
-			"name": "Current",
-			"type": "number",
-			"unit": "A"
-		},
-		"power_grid": {
-			"name": "Power",
-			"type": "number",
-			"unit": "W"
-		},
-		"volt_mains_l1": {
-			"divider": 10,
-			"name": "Voltage",
-			"type": "number",
-			"unit": "V"
-		}
-	},
-	"name": "HEA•THOR IoT 3,5 kW",
-	"setup": {
-		"bstmode": {
-			"name": "Boost Mode",
-			"options": {
-				"0": "Off",
-				"1": "On",
-				"3": "Relais"
-			},
-			"type": "enumeration"
-		}
-	}
+  "commands": {},
+  "data": {
+    "curr_l1": {
+      "name": "Current",
+      "type": "number",
+      "unit": "A"
+    },
+    "power_grid": {
+      "name": "Power",
+      "type": "number",
+      "unit": "W"
+    },
+    "volt_mains_l1": {
+      "divider": 10,
+      "name": "Voltage",
+      "type": "number",
+      "unit": "V"
+    }
+  },
+  "name": "HEA•THOR IoT 3,5 kW",
+  "setup": {
+    "bstmode": {
+      "name": "Boost Mode",
+      "options": {
+        "0": "Off",
+        "1": "On",
+        "3": "Relais"
+      },
+      "type": "enumeration"
+    }
+  }
 }

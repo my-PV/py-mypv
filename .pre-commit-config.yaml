@@ -6,7 +6,7 @@ repos:
         args:
           - --fix
       - id: ruff-format
-        files: ^((nad_serial|scripts|tests)/.+)?[^/]+\.(py|pyi)$
+        files: ^((my_pv|script|tests)/.+)?[^/]+\.(py|pyi)$
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.3
     hooks:
@@ -18,12 +18,17 @@ repos:
       - id: check-executables-have-shebangs
         stages: [manual]
       - id: check-json
-      - id: pretty-format-json
-        args: [--autofix, --indent, "\t", --no-ensure-ascii]
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.38.0
     hooks:
       - id: yamllint
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.6.2
+    hooks:
+      - id: prettier
+        additional_dependencies:
+          - prettier@3.6.2
+          - prettier-plugin-sort-json@4.2.0
   - repo: local
     hooks:
       # Run mypy through our wrapper script in order to get the possible

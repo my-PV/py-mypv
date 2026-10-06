@@ -1,55 +1,55 @@
 {
-	"commands": {},
-	"data": {
-		"curr_l2": {
-			"divider": 10,
-			"name": "Mains Current Phase L2",
-			"type": "number",
-			"unit": "A"
-		},
-		"curr_l3": {
-			"divider": 10,
-			"name": "Mains Current Phase L3",
-			"type": "number",
-			"unit": "A"
-		},
-		"curr_mains": {
-			"divider": 10,
-			"name": "Mains Current Phase L1",
-			"type": "number",
-			"unit": "A"
-		},
-		"power_ac9": {
-			"name": "Heating Power",
-			"type": "number",
-			"unit": "W"
-		},
-		"volt_l2": {
-			"name": "Voltage Phase L2",
-			"type": "number",
-			"unit": "V"
-		},
-		"volt_l3": {
-			"name": "Voltage Phase L3",
-			"type": "number",
-			"unit": "V"
-		},
-		"volt_mains": {
-			"name": "Voltage Phase L1",
-			"type": "number",
-			"unit": "V"
-		}
-	},
-	"name": "AC•THOR 9s Viessmann",
-	"setup": {
-		"bstmode": {
-			"name": "Boost Mode",
-			"options": {
-				"0": "Off",
-				"1": "On",
-				"3": "Relais"
-			},
-			"type": "enumeration"
-		}
-	}
+  "commands": {},
+  "data": {
+    "curr_l2": {
+      "divider": 10,
+      "name": "Mains Current Phase L2",
+      "type": "number",
+      "unit": "A"
+    },
+    "curr_l3": {
+      "divider": 10,
+      "name": "Mains Current Phase L3",
+      "type": "number",
+      "unit": "A"
+    },
+    "curr_mains": {
+      "divider": 10,
+      "name": "Mains Current Phase L1",
+      "type": "number",
+      "unit": "A"
+    },
+    "power_ac9": {
+      "name": "Heating Power",
+      "type": "number",
+      "unit": "W"
+    },
+    "volt_l2": {
+      "name": "Voltage Phase L2",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_l3": {
+      "name": "Voltage Phase L3",
+      "type": "number",
+      "unit": "V"
+    },
+    "volt_mains": {
+      "name": "Voltage Phase L1",
+      "type": "number",
+      "unit": "V"
+    }
+  },
+  "name": "AC•THOR 9s Viessmann",
+  "setup": {
+    "bstmode": {
+      "name": "Boost Mode",
+      "options": {
+        "0": "Off",
+        "1": "On",
+        "3": "Relais"
+      },
+      "type": "enumeration"
+    }
+  }
 }
