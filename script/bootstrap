@@ -18,3 +18,5 @@ uv pip install \
   colorlog \
   --upgrade \
   --config-settings editable_mode=compat
+
+pre-commit install
