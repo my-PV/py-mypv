@@ -164,6 +164,13 @@ class MyPVDevice(ABC):
         ):
             self._device_config["setup"]["bstmode"].get("options", {}).pop("5", None)
 
+        # Disable Maximum Power when Main Mode is Hot water 3.5 kW + 3 kW on AC ELWA 2
+        if (
+            self.serial_number.startswith(("160150", "160151"))
+            and setup_values.get("mainmode") == 3
+        ):
+            self._device_config["setup"].pop("maxpwr", None)
+
     @abstractmethod
     async def connect(self) -> bool:
         """Connect to my-PV device.
@@ -476,14 +483,6 @@ class MyPVDevice(ABC):
         ):
             return None
 
-        # Disable Maximum Power when Main Mode is Hot water 3.5 kW + 3 kW on AC ELWA 2
-        if (
-            key == "maxpwr"
-            and self._setup_values.get("mainmode") == 3
-            and self.serial_number.startswith(("160150", "160151"))
-        ):
-            return None
-
         # Disable Boost Active when Boost Mode is Off
         if key in _BOOST_SETUP_KEYS and self._setup_values.get("bstmode") == 0:
             return None
@@ -606,14 +605,6 @@ class MyPVDevice(ABC):
         if (
             key not in ["devmode", "ww1target"]
             and self._setup_values.get("devmode") == 0
-        ):
-            return False
-
-        # Disable Maximum Power when Main Mode is Hot water 3.5 kW + 3 kW on AC ELWA 2
-        if (
-            key == "maxpwr"
-            and self._setup_values.get("mainmode") == 3
-            and self.serial_number.startswith(("160150", "160151"))
         ):
             return False
 
