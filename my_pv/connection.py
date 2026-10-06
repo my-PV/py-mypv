@@ -201,7 +201,7 @@ class MyPVHTTPConnection(MyPVConnection):
                     success = True
         except json.JSONDecodeError:
             logger.exception(
-                "Invallid JSON for response status %i: %s",
+                "Invalid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
@@ -269,7 +269,7 @@ class MyPVHTTPConnection(MyPVConnection):
             )
         except json.JSONDecodeError as exc:
             logger.exception(
-                "Invallid JSON for response status %i: %s",
+                "Invalid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
@@ -378,7 +378,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                 )
         except json.JSONDecodeError as exc:
             logger.exception(
-                "Invallid JSON for response status %i: %s",
+                "Invalid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
@@ -430,7 +430,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
             )
         except json.JSONDecodeError as exc:
             logger.exception(
-                "Invallid JSON for response status %i: %s",
+                "Invalid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
@@ -587,7 +587,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
                 success = True
         except json.JSONDecodeError:
             logger.exception(
-                "Invallid JSON for response status %i: %s",
+                "Invalid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )
@@ -633,7 +633,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
             )
         except json.JSONDecodeError as exc:
             logger.exception(
-                "Invallid JSON for response status %i: %s",
+                "Invalid JSON for response status %i: %s",
                 response.status,
                 response_body,
             )

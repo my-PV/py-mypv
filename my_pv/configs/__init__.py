@@ -73,7 +73,7 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
             data = json.loads(await asyncio.to_thread(path.read_text, encoding="utf-8"))
 
             if not isinstance(data, dict):
-                logger.error("Invallid configuration file %s", config_file)
+                logger.error("Invalid configuration file %s", config_file)
             else:
                 config = {} if config is None else config
                 config = _deep_merge(config, data)
@@ -84,10 +84,10 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
             logger.exception("Configuration file %s not accessible", config_file)
         except UnicodeDecodeError:
             logger.exception(
-                "Invallid configuration file %s, Unicode error", config_file
+                "Invalid configuration file %s, Unicode error", config_file
             )
         except JSONDecodeError:
-            logger.warning("Invallid config file %s", config_file)
+            logger.warning("Invalid config file %s", config_file)
 
     if config is not None:
         return {key: val for key, val in config.items() if val is not None}
