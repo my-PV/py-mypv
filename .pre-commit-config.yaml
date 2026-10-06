@@ -35,17 +35,17 @@ repos:
       # pyenv and/or virtualenv activated; it may not have been e.g. if
       # committing from a GUI tool that was not launched from an activated
       # shell.
-      #- id: mypy
-      #  name: mypy
-      #  entry: script/run-in-env.sh mypy
-      #  language: script
-      #  require_serial: true
-      #  types: [python]
-      #  files: ^(my-pv)/.+\.py$
+      - id: mypy
+        name: mypy
+        entry: script/run-in-env.sh mypy
+        language: script
+        require_serial: true
+        types: [python]
+        files: ^(my_pv)/.+\.py$
       - id: pylint
         name: pylint
         entry: script/run-in-env.sh pylint
         language: script
         require_serial: true
         types: [python]
-        files: ^(my-pv|tests)/.+\.py$
+        files: ^(my_pv|tests)/.+\.py$
