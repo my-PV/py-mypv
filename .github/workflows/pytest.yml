@@ -1,5 +1,6 @@
 name: Run Python tests
 
+# yamllint disable-line rule:truthy
 on: [push]
 
 jobs:
