@@ -112,6 +112,7 @@ def _handle_rate_limiting[T](
 
     return wrapper
 
+
 class MyPVHTTPConnection(MyPVConnection):
     """my-PV connection using HTTP on port 80."""
 
@@ -316,7 +317,6 @@ class MyPVHTTPConnection(MyPVConnection):
         response = await self._get(self._setup_url, data)
         return response.get(key) == value
 
-
     @_handle_rate_limiting
     async def send_command(self, key: str, value: Any) -> bool:
         """Sends a command to the device."""
@@ -401,12 +401,14 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         if not self._session or (not self.is_open() and not await self.open()):
             raise MyPVConnectionError
 
-        data = urlencode(data, safe=DONT_ENCODE)
+        encoded_data = urlencode(data, safe=DONT_ENCODE)
 
-        logger.debug("POST %s %s", url, data)
+        logger.debug("POST %s %s", url, encoded_data)
 
         try:
-            response = await self._session.post(url, data=data, ssl=self._SSL_CHECK)
+            response = await self._session.post(
+                url, data=encoded_data, ssl=self._SSL_CHECK
+            )
             response_body = await response.text()
 
             if response.status == 429:

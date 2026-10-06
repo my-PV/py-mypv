@@ -324,6 +324,9 @@ class MyPVDevice(ABC):
 
     def _fw_version_compare(self, compare_with: str) -> bool:
         result = _FW_VERSION_COMPARE_RE.search(compare_with)
+        if result is None:
+            return False
+
         comparator = result.group(0)
         version = result.group(1)
         version = int(version[1:])
@@ -331,6 +334,8 @@ class MyPVDevice(ABC):
         fw_version = self._data_values.get("fwversion2_comp")
         if fw_version is None:
             fw_version = self._data_values.get("fwversion2")
+        if fw_version is None:
+            return False
 
         fw_version = int(fw_version[1:])
 
@@ -463,7 +468,10 @@ class MyPVDevice(ABC):
             raise MyPVNotSupportedError(key)
 
         # Disable all but Device Mode and Target Temperature when Device Mode is Off
-        if key not in  ["devmode", "ww1target"] and self._setup_values.get("devmode") == 0:
+        if (
+            key not in ["devmode", "ww1target"]
+            and self._setup_values.get("devmode") == 0
+        ):
             return None
 
         # Disable Maximum Power when Main Mode is Hot water 3.5 kW + 3 kW on AC ELWA 2
@@ -593,7 +601,10 @@ class MyPVDevice(ABC):
             raise MyPVNotSupportedError(key)
 
         # Disable all but Device Mode and target temperature when Device Mode is Off
-        if key not in ["devmode", "ww1target"] and self._setup_values.get("devmode") == 0:
+        if (
+            key not in ["devmode", "ww1target"]
+            and self._setup_values.get("devmode") == 0
+        ):
             return False
 
         # Disable Boost Active when Boost Mode is Off
@@ -762,7 +773,7 @@ class MyPVLocalDevice(MyPVDevice):
                 if "name" in self._device_config:
                     self._model = self._device_config["name"]
                 else:
-                    self._model = connection.mypv_dev.get("device")
+                    self._model = connection.mypv_dev.get("device", "")
 
         try:
             # Get the device setup
