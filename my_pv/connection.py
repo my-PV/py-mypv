@@ -116,6 +116,24 @@ def _handle_rate_limiting[T](
     return wrapper
 
 
+def _handle_reauthentication[T](
+    func: Callable[..., Coroutine[Any, Any, T]],
+) -> Callable[..., Coroutine[Any, Any, T]]:
+    """Re-authenticate once when the device lost the authentication."""
+
+    @functools.wraps(func)
+    async def wrapper(self, *args: Any, **kwargs: Any) -> T:
+        try:
+            return await func(self, *args, **kwargs)
+        except MyPVAuthenticationError:
+            if not self._session:
+                raise
+            await self._auth(self._session)
+        return await func(self, *args, **kwargs)
+
+    return wrapper
+
+
 class MyPVHTTPConnection(MyPVConnection):
     """my-PV connection using HTTP on port 80."""
 
@@ -394,6 +412,13 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         # Authentication failed.
         raise MyPVAuthenticationError
 
+    @_handle_reauthentication
+    async def _get(
+        self, url: str, data: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        return await super()._get(url, data)
+
+    @_handle_reauthentication
     async def _post(self, url: str, data: dict[str, Any]) -> dict[str, Any]:
         if (not self.is_open() and not await self.open()) or self._session is None:
             raise MyPVConnectionError
