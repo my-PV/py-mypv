@@ -1,0 +1,22 @@
+{
+  "commands": {},
+  "data": {
+    "power_act": {
+      "name": "Heating Power",
+      "type": "number",
+      "unit": "W"
+    }
+  },
+  "name": "AC•THOR Greenheiss",
+  "setup": {
+    "bstmode": {
+      "name": "Boost Mode",
+      "options": {
+        "0": "Off",
+        "1": "On",
+        "3": "Relais"
+      },
+      "type": "enumeration"
+    }
+  }
+}
