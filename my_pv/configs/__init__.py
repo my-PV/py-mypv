@@ -22,8 +22,11 @@ Configuration files for my-PV devices.
 200103 - AC•THOR i
 200110 - AC•THOR Viessmann
 200113 - AC•THOR i Viessmann
+200120 - AC•THOR Greenheiss
 200300 - AC•THOR 9s
 200310 - AC•THOR 9s Viessmann
+200320 - AC•THOR 9s Greenheiss
+200330 - AC•THOR 9s Tuxhorn tubra eTherm AC•THOR 9s
 210300 - HEA•THOR IoT 3,5 kW
 210900 - HEA•THOR IoT 9 kW
 """
