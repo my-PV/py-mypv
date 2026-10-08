@@ -17,7 +17,8 @@ This file defines the different connection methods the my-PV library supports.
 
 from abc import ABC, abstractmethod
 import asyncio
-from collections.abc import Callable, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine
+from contextlib import asynccontextmanager
 import functools
 import json
 import logging
@@ -46,6 +47,10 @@ HTTPS_PORT: Final = 443
 CLOUD_HOST = "api.my-pv.com"
 
 DONT_ENCODE = "-_.!~*'()"
+
+
+class _MyPVRequestCancelledError(Exception):
+    """my-PV request cancelled because a newer request replaces it."""
 
 
 class MyPVConnection(ABC):
@@ -77,7 +82,9 @@ class MyPVConnection(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def set_setup_value(self, key: str, value: Any) -> bool:
+    async def set_setup_value(
+        self, key: str, value: Any, *, cancel: asyncio.Event | None = None
+    ) -> dict[str, Any] | None:
         """Sets the setup value for the given key."""
         raise NotImplementedError
 
@@ -99,19 +106,25 @@ class MyPVConnection(ABC):
 def _handle_rate_limiting[T](
     func: Callable[..., Coroutine[Any, Any, T]],
 ) -> Callable[..., Coroutine[Any, Any, T]]:
+    """Sends the request when it's its turn and retries while the device is rate limiting."""
+
     @functools.wraps(func)
-    async def wrapper(self, *args: Any, **kwargs: Any) -> T:
-        async with self._request_lock:
+    async def wrapper(
+        self, *args: Any, cancel: asyncio.Event | None = None, **kwargs: Any
+    ) -> T:
+        async with self._write_request_lock():
             fails = 0
             while True:
+                if cancel is not None and cancel.is_set():
+                    raise _MyPVRequestCancelledError
                 try:
                     return await func(self, *args, **kwargs)
                 except MyPVTooManyRequestsError:
-                    logger.warning("Device is rate limiting")
+                    logger.debug("Device is rate limiting, retrying")
                     fails += 1
-                    if fails > 5:
+                    if fails >= 10:
                         raise
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.25)
 
     return wrapper
 
@@ -147,13 +160,50 @@ class MyPVHTTPConnection(MyPVConnection):
 
     _mypv_dev = None
 
-    _request_lock: asyncio.Lock
+    _lock: asyncio.Lock
+    _waiting_requests: int = 0
+    _waiting_write_requests: int = 0
+
+    @asynccontextmanager
+    async def _read_request_lock(self) -> AsyncIterator[None]:
+        """Lock for reads, raises MyPVTooManyRequestsError when too many requests are waiting."""
+        if self._waiting_requests >= 1:
+            raise MyPVTooManyRequestsError("Request in progress")
+
+        self._waiting_requests += 1
+        try:
+            await self._lock.acquire()
+        finally:
+            self._waiting_requests -= 1
+
+        try:
+            if self._waiting_write_requests:
+                raise MyPVTooManyRequestsError("Write waiting")
+            yield
+        finally:
+            self._lock.release()
+
+    @asynccontextmanager
+    async def _write_request_lock(self) -> AsyncIterator[None]:
+        """Lock for writes, which must arrive: they always wait for their turn."""
+        self._waiting_requests += 1
+        self._waiting_write_requests += 1
+        try:
+            await self._lock.acquire()
+        finally:
+            self._waiting_requests -= 1
+            self._waiting_write_requests -= 1
+
+        try:
+            yield
+        finally:
+            self._lock.release()
 
     def __init__(self, host: str) -> None:
         """Initializes a my-PV HTTP connect."""
         self._host = host
 
-        self._request_lock = asyncio.Lock()
+        self._lock = asyncio.Lock()
 
     async def _auth(self, session: ClientSession) -> bool:
         """The older HTTP only firmware doesn't yet support authentication."""
@@ -191,7 +241,7 @@ class MyPVHTTPConnection(MyPVConnection):
         session = None
         success = False
         try:
-            session = ClientSession(timeout=ClientTimeout(total=5))
+            session = ClientSession(timeout=ClientTimeout(total=5, sock_connect=1))
             response = await session.get(mypv_dev_url, ssl=self._SSL_CHECK)
             response_body = await response.text()
             response_json = {}
@@ -312,7 +362,7 @@ class MyPVHTTPConnection(MyPVConnection):
         if not self._setup_url:
             return None
 
-        async with self._request_lock:
+        async with self._read_request_lock():
             return await self._get(self._setup_url)
 
     async def fetch_data(self) -> dict[str, Any] | None:
@@ -320,20 +370,17 @@ class MyPVHTTPConnection(MyPVConnection):
         if not self._data_url:
             return None
 
-        async with self._request_lock:
+        async with self._read_request_lock():
             data = await self._get(self._data_url)
             return {key.lower(): value for key, value in data.items()}
 
     @_handle_rate_limiting
-    async def set_setup_value(self, key: str, value: Any) -> bool:
+    async def set_setup_value(self, key: str, value: Any) -> dict[str, Any] | None:
         """Sets the setup value for the given key."""
         if not self._setup_url:
-            return False
+            return None
 
-        data = {key: value}
-
-        response = await self._get(self._setup_url, data)
-        return response.get(key) == value
+        return await self._get(self._setup_url, {key: value})
 
     @_handle_rate_limiting
     async def send_command(self, key: str, value: Any) -> bool:
@@ -471,15 +518,12 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         return {}
 
     @_handle_rate_limiting
-    async def set_setup_value(self, key: str, value: Any) -> bool:
+    async def set_setup_value(self, key: str, value: Any) -> dict[str, Any] | None:
         """Sets the setup value for the given key."""
         if not self._setup_url:
-            return False
+            return None
 
-        data = {key: value}
-
-        response = await self._post(self._setup_url, data)
-        return response.get(key) == value
+        return await self._post(self._setup_url, {key: value})
 
     @_handle_rate_limiting
     async def send_command(self, key: str, value: Any) -> bool:
@@ -693,14 +737,16 @@ class MyPVCloudConnection(MyPVHTTPConnection):
 
         return data
 
-    async def set_setup_value(self, key: str, value: Any) -> bool:
+    async def set_setup_value(
+        self, key: str, value: Any, *, cancel: asyncio.Event | None = None
+    ) -> dict[str, Any] | None:
         """Sets the setup value for the given key."""
         if not self._setup_url:
-            return False
+            return None
 
         data = json.dumps({key: value})
 
-        return await self._put(self._setup_url, data)
+        return {key: value} if await self._put(self._setup_url, data) else None
 
     async def send_command(self, key: str, value: Any) -> bool:
         """Sends a command to the device."""

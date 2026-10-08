@@ -30,11 +30,13 @@ from .connection import (
     MyPVConnection,
     MyPVHTTPConnection,
     MyPVHTTPSConnection,
+    _MyPVRequestCancelledError,
 )
 from .exceptions import (
     MyPVAuthenticationError,
     MyPVConnectionError,
     MyPVDeviceNotSupportedError,
+    MyPVException,
     MyPVNotSupportedError,
     MyPVTooManyRequestsError,
 )
@@ -71,6 +73,8 @@ _BOOST_SETUP_KEYS: Final[list[str]] = [
 
 _FW_VERSION_COMPARE_RE = re.compile("([<>=]*)[a-z]([0-9]*)")
 
+_SETUP_REFRESH_EVERY: Final = 6  # refresh setup values on every 6th poll
+
 
 class MyPVDeviceMainMode(StrEnum):
     """The different modes a my-PV device can support."""
@@ -97,7 +101,9 @@ class MyPVDevice(ABC):
     _setup_uri: str | None = None
 
     _setup_values: dict[str, Any]
+    _cached_setup_values: dict[str, Any]
     _data_values: dict[str, Any]
+    _cached_data_values: dict[str, Any]
     _device_config: dict[str, Any]
 
     _main_modes: tuple[MyPVDeviceMainMode, ...] | None = None
@@ -105,15 +111,22 @@ class MyPVDevice(ABC):
     _firmware_update_lock: asyncio.Lock
     _next_check_fwupd: float | None = None
 
+    _poll_count: int = 0
+    _pending_writes: dict[str, asyncio.Event]
+
     def __init__(self, advanced: bool = False):
         """Initializes a my-PV device."""
         self.advanced = advanced
 
         self._setup_values = {}
+        self._cached_setup_values = {}
         self._data_values = {}
+        self._cached_data_values = {}
         self._device_config = {}
 
         self._firmware_update_lock = asyncio.Lock()
+
+        self._pending_writes = {}
 
     def _init_device(self, setup_values: dict[str, Any]) -> None:
         self._hardware_version = setup_values.get("hwvers")
@@ -382,6 +395,58 @@ class MyPVDevice(ABC):
         except FileNotFoundError as ex:
             raise MyPVDeviceNotSupportedError(self.serial_number) from ex
 
+    def _update_values(
+        self,
+        setup_values: dict[str, Any] | None,
+        data_values: dict[str, Any] | None,
+    ) -> None:
+        """Builds the setup and data values."""
+        if setup_values is not None:
+            for key, val in setup_values.items():
+                if key in _IGNORED_SETUP_KEYS or key in self._pending_writes:
+                    continue
+                if val in [None, "null"]:
+                    self._cached_setup_values.pop(key, None)
+                else:
+                    self._cached_setup_values[key] = val
+
+        if data_values is not None:
+            self._cached_data_values = {
+                key: val
+                for key, val in data_values.items()
+                if key not in _IGNORED_DATA_KEYS
+                and val not in [None, "null"]
+                and not (
+                    key in self._device_config["data"]
+                    and self._device_config["data"][key].get("type") == "number"
+                    and self._device_config["data"][key].get("unit") == "°C"
+                    and val == 0
+                )
+            }
+
+        setup = self._cached_setup_values
+        data = self._cached_data_values
+
+        self._setup_values = {
+            key: setup[key]
+            for key, config in self._device_config["setup"].items()
+            if key in setup and not config.get("readonly", False)
+        } | {
+            key: data[key]
+            for key, config in self._device_config["data"].items()
+            if key in data and not config.get("readonly", True)
+        }
+
+        self._data_values = {
+            key: setup[key]
+            for key, config in self._device_config["setup"].items()
+            if key in setup and config.get("readonly", False)
+        } | {
+            key: data[key]
+            for key, config in self._device_config["data"].items()
+            if key in data and config.get("readonly", True)
+        }
+
     async def fetch_data(self) -> bool:
         """Fetch data from the device.
 
@@ -390,50 +455,17 @@ class MyPVDevice(ABC):
         if not self._connection or not self.connected:
             return False
 
-        setup_values = await self._connection.fetch_setup()
-        if not setup_values:
-            return False
-        setup_values = {
-            key: val
-            for key, val in setup_values.items()
-            if key not in _IGNORED_SETUP_KEYS and val not in [None, "null"]
-        }
+        setup_values = None
+        if self._poll_count % _SETUP_REFRESH_EVERY == 0:
+            setup_values = await self._connection.fetch_setup()
+            if not setup_values:
+                return False
 
         data_values = await self._connection.fetch_data()
         if not data_values:
             return False
-        data_values = {
-            key: val
-            for key, val in data_values.items()
-            if key not in _IGNORED_DATA_KEYS
-            and val not in [None, "null"]
-            and not (
-                key in self._device_config["data"]
-                and self._device_config["data"][key].get("type") == "number"
-                and self._device_config["data"][key].get("unit") == "°C"
-                and val == 0
-            )
-        }
 
-        self._setup_values = {
-            key: setup_values[key]
-            for key, val in self._device_config["setup"].items()
-            if key in setup_values and not val.get("readonly", False)
-        } | {
-            key: data_values[key]
-            for key, val in self._device_config["data"].items()
-            if key in data_values and not val.get("readonly", True)
-        }
-
-        self._data_values = {
-            key: setup_values[key]
-            for key, val in self._device_config["setup"].items()
-            if key in setup_values and val.get("readonly", False)
-        } | {
-            key: data_values[key]
-            for key, val in self._device_config["data"].items()
-            if key in data_values and val.get("readonly", True)
-        }
+        self._update_values(setup_values, data_values)
 
         if self.supports_command("check_fwupd") and (
             not self._next_check_fwupd or time.monotonic() > self._next_check_fwupd
@@ -442,6 +474,7 @@ class MyPVDevice(ABC):
                 await self.send_command("check_fwupd")
             self._next_check_fwupd = time.monotonic() + 24 * 60 * 60  # Once a  day
 
+        self._poll_count += 1
         return True
 
     def supports_configuration(self, key: str) -> bool:
@@ -634,7 +667,8 @@ class MyPVDevice(ABC):
                 result = await self.send_command(command, value)
 
                 if result:
-                    self._setup_values[key] = value
+                    self._cached_data_values[key] = value
+                    self._update_values(None, None)
 
                 return result
 
@@ -656,12 +690,34 @@ class MyPVDevice(ABC):
                         return False
                     value = int(value)
 
-        result = await self._connection.set_setup_value(key, value)
+        # A newer write for the same key cancels a pending write.
+        if previous := self._pending_writes.get(key):
+            previous.set()
+        cancel = asyncio.Event()
+        self._pending_writes[key] = cancel
 
-        if result:
-            self._setup_values[key] = value
+        self._cached_setup_values[key] = value
+        self._update_values(None, None)
 
-        return result
+        try:
+            response = await self._connection.set_setup_value(key, value, cancel=cancel)
+        except _MyPVRequestCancelledError:
+            logger.debug("Skipped %s=%s, superseded by a newer value", key, value)
+            return True
+        except MyPVException:
+            self._poll_count = 0  # Enforce an update of the setup values
+            raise
+        finally:
+            if self._pending_writes.get(key) is cancel:
+                del self._pending_writes[key]
+
+        if not response:
+            self._poll_count = 0  # Enforce an update of the setup values
+            return False
+
+        self._update_values(response, None)
+
+        return response.get(key) == value
 
     def supports_command(self, command: str) -> bool:
         """Returns True when a command is supported by the device."""
