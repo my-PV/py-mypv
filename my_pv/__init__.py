@@ -779,7 +779,7 @@ class MyPVDevice(ABC):
     @property
     def current_temperature(self) -> float | None:
         """The current temperature."""
-        return self.get_data_value("temp1")
+        return self.get_data_value("temp1") if self.supports_data("temp1") else None
 
     @property
     def target_temperature(self) -> float | None:
