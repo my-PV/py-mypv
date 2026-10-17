@@ -128,7 +128,9 @@ class MyPVDevice(ABC):
 
         self._pending_writes = {}
 
-    def _init_device(self, setup_values: dict[str, Any]) -> None:
+    def _init_device(
+        self, setup_values: dict[str, Any], data_values: dict[str, Any]
+    ) -> None:
         self._hardware_version = setup_values.get("hwvers")
         self._firmware_version = setup_values.get("fwversion")
 
@@ -176,6 +178,13 @@ class MyPVDevice(ABC):
             and setup_values.get("mainmode") == 1
         ):
             self._device_config["setup"]["bstmode"].get("options", {}).pop("5", None)
+
+        # Disable Boost Temperature and Hysteresis when temperature sensor is not connected
+        if data_values.get("temp1") is None or data_values.get("temp1") == 0:
+            self._device_config["setup"].pop("bsttemp", None)
+            self._device_config["setup"].pop("ww1boost", None)
+            self._device_config["setup"].pop("ww_boost_h", None)
+            self._device_config["setup"].pop("ww_targ_h", None)
 
         # Disable Maximum Power when Main Mode is Hot water 3.5 kW + 3 kW on AC ELWA 2
         if (
@@ -861,11 +870,12 @@ class MyPVLocalDevice(MyPVDevice):
         try:
             # Get the device setup
             setup_values = await connection.fetch_setup()
-            if not setup_values:
+            data_values = await connection.fetch_data()
+            if not setup_values or not data_values:
                 await connection.close()
                 return False
 
-            self._init_device(setup_values)
+            self._init_device(setup_values, data_values)
         except MyPVConnectionError:
             await connection.close()
             return False
@@ -931,11 +941,12 @@ class MyPVCloudDevice(MyPVDevice):
         try:
             # Get the device setup
             setup_values = await connection.fetch_setup()
-            if not setup_values:
+            data_values = await connection.fetch_data()
+            if not setup_values or not data_values:
                 await connection.close()
                 return False
 
-            self._init_device(setup_values)
+            self._init_device(setup_values, data_values)
         except MyPVConnectionError:
             await connection.close()
             return False
