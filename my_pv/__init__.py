@@ -181,6 +181,7 @@ class MyPVDevice(ABC):
 
         # Disable Boost Temperature and Hysteresis when temperature sensor is not connected
         if data_values.get("temp1") is None or data_values.get("temp1") == 0:
+            self._device_config["setup"].pop("bstmode", None)
             self._device_config["setup"].pop("bsttemp", None)
             self._device_config["setup"].pop("ww1boost", None)
             self._device_config["setup"].pop("ww_boost_h", None)
