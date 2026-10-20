@@ -487,7 +487,7 @@ class MyPVDevice(ABC):
         self._poll_count += 1
         return True
 
-    def supports_configuration(self, key: str) -> bool:
+    def supports_setup(self, key: str) -> bool:
         """Return True if the device supports the given setup parameter."""
         if key not in self._setup_values:
             return False
@@ -531,7 +531,7 @@ class MyPVDevice(ABC):
         if not self.connected:
             raise MyPVConnectionError("Device not connected")
 
-        if not self.supports_configuration(key):
+        if not self.supports_setup(key):
             raise MyPVNotSupportedError(key)
 
         # Disable all but Device Mode and Target Temperature when Device Mode is Off
@@ -656,7 +656,7 @@ class MyPVDevice(ABC):
         if not self._connection or not self.connected:
             raise MyPVConnectionError("Device not connected")
 
-        if not self.supports_configuration(key):
+        if not self.supports_setup(key):
             raise MyPVNotSupportedError(key)
 
         # Disable all but Device Mode and target temperature when Device Mode is Off
