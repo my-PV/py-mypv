@@ -152,9 +152,13 @@ class MyPVHTTPConnection(MyPVConnection):
 
     _PROTOCOL = "http"
     _SSL_CHECK = True
+    _TIMEOUT: ClientTimeout | None = ClientTimeout(total=5, sock_connect=1)
 
     _host: str
     _session: ClientSession | None = None
+    _owns_session: bool = True
+    _connected: bool = False
+    _headers: dict[str, str] | None = None
     _setup_url: str | None = None
     _data_url: str | None = None
 
@@ -199,11 +203,33 @@ class MyPVHTTPConnection(MyPVConnection):
         finally:
             self._lock.release()
 
-    def __init__(self, host: str) -> None:
-        """Initializes a my-PV HTTP connect."""
+    def __init__(self, host: str, *, session: ClientSession | None = None) -> None:
+        """Initializes a my-PV HTTP connect.
+
+        When a session is given it is used for all requests and never closed by
+        the connection, otherwise the connection creates and owns its own session.
+        """
         self._host = host
+        self._session = session
+        self._owns_session = session is None
 
         self._lock = asyncio.Lock()
+
+    def _get_session(self) -> ClientSession:
+        """Returns the session to use, creating an owned session if needed."""
+        if self._session is None or (self._owns_session and self._session.closed):
+            self._session = ClientSession()
+            self._owns_session = True
+        return self._session
+
+    def _request_kwargs(self) -> dict[str, Any]:
+        """Returns the keyword arguments to pass with every request."""
+        kwargs: dict[str, Any] = {"ssl": self._SSL_CHECK}
+        if self._TIMEOUT is not None:
+            kwargs["timeout"] = self._TIMEOUT
+        if self._headers:
+            kwargs["headers"] = self._headers
+        return kwargs
 
     async def _auth(self, session: ClientSession) -> bool:
         """The older HTTP only firmware doesn't yet support authentication."""
@@ -212,7 +238,9 @@ class MyPVHTTPConnection(MyPVConnection):
         logger.debug("GET %s", auth_url)
 
         try:
-            async with session.get(auth_url, ssl=True) as response:
+            async with session.get(
+                auth_url, **(self._request_kwargs() | {"ssl": True})
+            ) as response:
                 if response.status == 429:
                     logger.error(response.reason)
                     raise MyPVTooManyRequestsError(response.reason)
@@ -224,7 +252,7 @@ class MyPVHTTPConnection(MyPVConnection):
                 raise MyPVTooManyRequestsError from exc
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
-            await session.close()
+            await self.close()
             raise MyPVConnectionError from exc
 
         return True
@@ -238,11 +266,10 @@ class MyPVHTTPConnection(MyPVConnection):
             [self._PROTOCOL, self._host, "/mypv_dev.jsn", None, None]
         )
 
-        session = None
         success = False
         try:
-            session = ClientSession(timeout=ClientTimeout(total=5, sock_connect=1))
-            response = await session.get(mypv_dev_url, ssl=self._SSL_CHECK)
+            session = self._get_session()
+            response = await session.get(mypv_dev_url, **self._request_kwargs())
             response_body = await response.text()
             response_json = {}
             if response.content_type == "application/json":
@@ -277,23 +304,28 @@ class MyPVHTTPConnection(MyPVConnection):
             logger.debug(exc)
         finally:
             if success:
-                self._session = session
-            elif session:
+                self._connected = True
+            else:
                 # Close the connection if we failed to connect.
-                await session.close()
+                await self.close()
 
         return success
 
     def is_open(self) -> bool:
         """True if the connection is open else False."""
-        if self._session is None:
+        if not self._connected or self._session is None:
             return False
 
         return not self._session.closed
 
     async def close(self) -> bool:
-        """Closes the connection to the device."""
-        if self._session is not None:
+        """Closes the connection to the device.
+
+        An injected session is left open, only an owned session is closed.
+        """
+        self._connected = False
+
+        if self._owns_session and self._session is not None:
             await self._session.close()
             self._session = None
 
@@ -312,7 +344,7 @@ class MyPVHTTPConnection(MyPVConnection):
         logger.debug("GET %s", url)
 
         try:
-            response = await self._session.get(url, ssl=self._SSL_CHECK)
+            response = await self._session.get(url, **self._request_kwargs())
             response_body = await response.text()
 
             if response.status == 429:
@@ -408,9 +440,11 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
 
     _password: str
 
-    def __init__(self, host: str, password: str) -> None:
+    def __init__(
+        self, host: str, password: str, *, session: ClientSession | None = None
+    ) -> None:
         """Initializes a my-PV HTTPS connect."""
-        super().__init__(host)
+        super().__init__(host, session=session)
 
         self._password = password
 
@@ -422,7 +456,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         logger.debug("POST %s %s", auth_url, urlencode({"pw": "***"}, safe=DONT_ENCODE))
 
         try:
-            response = await session.post(auth_url, data=data, ssl=self._SSL_CHECK)
+            response = await session.post(auth_url, data=data, **self._request_kwargs())
             response_body = await response.text()
 
             if response.status == 429:
@@ -453,7 +487,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                 raise MyPVTooManyRequestsError from exc
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
-            await session.close()
+            await self.close()
             raise MyPVConnectionError from exc
 
         # Authentication failed.
@@ -476,7 +510,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
 
         try:
             response = await self._session.post(
-                url, data=encoded_data, ssl=self._SSL_CHECK
+                url, data=encoded_data, **self._request_kwargs()
             )
             response_body = await response.text()
 
@@ -542,6 +576,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
     """my-PV cloud connection."""
 
     _PROTOCOL = "https"
+    _TIMEOUT = None
 
     _api_token: str
 
@@ -551,7 +586,12 @@ class MyPVCloudConnection(MyPVHTTPConnection):
     _serial_number: str
 
     def __init__(
-        self, serial_number: str, api_token: str, *, host: str | None = None
+        self,
+        serial_number: str,
+        api_token: str,
+        *,
+        host: str | None = None,
+        session: ClientSession | None = None,
     ) -> None:
         """Initializes a my-PV Cloud connect."""
         assert serial_number is not None
@@ -560,10 +600,15 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         if not host:
             host = CLOUD_HOST
 
-        super().__init__(host)
+        super().__init__(host, session=session)
 
         self._serial_number = serial_number
         self._api_token = api_token
+        self._headers = {
+            "Authorization": f"Bearer {self._api_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
 
     async def open(self) -> bool:
         """Opens the connection to the device."""
@@ -579,18 +624,11 @@ class MyPVCloudConnection(MyPVHTTPConnection):
                 None,
             ]
         )
-        headers = {
-            "Authorization": f"Bearer {self._api_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-
-        session = None
         success = False
         try:
-            session = ClientSession(headers=headers)
+            session = self._get_session()
 
-            response = await session.get(is_online_url)
+            response = await session.get(is_online_url, **self._request_kwargs())
             response_body = await response.text()
             response_json = {}
             if response.content_type == "application/json":
@@ -664,10 +702,10 @@ class MyPVCloudConnection(MyPVHTTPConnection):
             logger.debug(exc)
         finally:
             if success:
-                self._session = session
-            elif session:
+                self._connected = True
+            else:
                 # Close the connection if we failed to connect.
-                await session.close()
+                await self.close()
 
         return success
 
@@ -678,7 +716,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
         logger.debug("PUT %s %s", url, data)
 
         try:
-            response = await self._session.put(url, data=data, ssl=self._SSL_CHECK)
+            response = await self._session.put(url, data=data, **self._request_kwargs())
             if response.status == 429:
                 logger.error(response.reason)
                 raise MyPVTooManyRequestsError(response.reason)
