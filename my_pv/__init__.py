@@ -24,6 +24,8 @@ import re
 import time
 from typing import Any, Final
 
+from aiohttp import ClientSession
+
 from .configs import read_config
 from .connection import (
     MyPVCloudConnection,
@@ -97,7 +99,7 @@ class MyPVDevice(ABC):
     _mac_address: str | None = None
 
     _connection: MyPVConnection | None = None
-    _uri: str | None = None
+    _uri: str
     _setup_uri: str | None = None
 
     _setup_values: dict[str, Any]
@@ -230,7 +232,7 @@ class MyPVDevice(ABC):
         return self._setup_uri
 
     @property
-    def uri(self) -> str | None:
+    def uri(self) -> str:
         """The underlying connection uri to the my-PV device."""
         return self._uri
 
@@ -242,11 +244,7 @@ class MyPVDevice(ABC):
         if self._connection is None:
             return True
 
-        if await self._connection.close():
-            self._connection = None
-            return True
-
-        return False
+        return await self._connection.close()
 
     @property
     def serial_number(self) -> str:
@@ -823,11 +821,21 @@ class MyPVLocalDevice(MyPVDevice):
 
     _host: str
     _password: str | None
+    _connection: MyPVHTTPConnection
 
     def __init__(
-        self, host: str, password: str | None = None, advanced: bool = False
+        self,
+        host: str,
+        password: str | None = None,
+        *,
+        advanced: bool = False,
+        session: ClientSession | None = None,
     ) -> None:
-        """Initializes a local connected my-PV device."""
+        """Initializes a local connected my-PV device.
+
+        When a session is given it is used for all requests and is never closed
+        by the library.
+        """
         if not host:
             raise ValueError("host is required")
 
@@ -837,7 +845,11 @@ class MyPVLocalDevice(MyPVDevice):
         self._password = password
 
         if password:
+            self._connection = MyPVHTTPSConnection(host, password, session=session)
             self._setup_uri = f"https://{host}/"
+        else:
+            self._connection = MyPVHTTPConnection(host, session=session)
+        self._uri = self._connection.uri
 
     async def connect(self) -> bool:
         """Connect to my-PV device.
@@ -846,12 +858,7 @@ class MyPVLocalDevice(MyPVDevice):
         """
         await self.disconnect()
 
-        connection: MyPVHTTPConnection
-        if self._password:
-            connection = MyPVHTTPSConnection(self._host, self._password)
-        else:
-            connection = MyPVHTTPConnection(self._host)
-        self._uri = connection.uri
+        connection = self._connection
 
         try:
             if not await connection.open():
@@ -888,8 +895,6 @@ class MyPVLocalDevice(MyPVDevice):
             await connection.close()
             raise
 
-        self._connection = connection
-
         if not self._setup_uri and setup_values.get("cloudmode"):
             self._setup_uri = CLOUD_FRONTEND
 
@@ -904,6 +909,7 @@ class MyPVCloudDevice(MyPVDevice):
     _host: str | None
     _serial_number: str
     _api_token: str
+    _connection: MyPVCloudConnection
 
     def __init__(
         self,
@@ -912,8 +918,13 @@ class MyPVCloudDevice(MyPVDevice):
         advanced: bool = False,
         *,
         host: str | None = None,
+        session: ClientSession | None = None,
     ) -> None:
-        """Initializes a cloud connected my-PV device."""
+        """Initializes a cloud connected my-PV device.
+
+        When a session is given it is used for all requests and is never closed
+        by the library.
+        """
         assert serial_number is not None
         assert api_token is not None
 
@@ -923,6 +934,11 @@ class MyPVCloudDevice(MyPVDevice):
         self._serial_number = serial_number
         self._api_token = api_token
 
+        self._connection = MyPVCloudConnection(
+            serial_number, api_token, host=host, session=session
+        )
+        self._uri = self._connection.uri
+
     async def connect(self) -> bool:
         """Connect to my-PV device.
 
@@ -930,9 +946,7 @@ class MyPVCloudDevice(MyPVDevice):
         """
         await self.disconnect()
 
-        connection = MyPVCloudConnection(
-            self._serial_number, self._api_token, host=self._host
-        )
+        connection = self._connection
 
         try:
             if not await connection.open():
@@ -955,8 +969,6 @@ class MyPVCloudDevice(MyPVDevice):
         except MyPVConnectionError:
             await connection.close()
             return False
-
-        self._connection = connection
 
         await self._read_config()
 
