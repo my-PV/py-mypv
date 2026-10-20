@@ -271,7 +271,8 @@ class MyPVDevice(ABC):
     @property
     def latest_firmware_version(self) -> str | None:
         """The device latest available firmware version."""
-        return self._get_data_value("fwversionlatest")
+        value = self._get_data_value("fwversionlatest")
+        return str(value) if value is not None else None
 
     @property
     def firmware_update_available(self) -> bool:
@@ -361,7 +362,8 @@ class MyPVDevice(ABC):
     def firmware_update_progress(self) -> int | None:
         """Returns the progress of the firmware update in percents, or None if no firmware update is active."""
         if self._get_data_value("upd_state") == "3":
-            return self._get_data_value("upd_percentage")
+            value = self._get_data_value("upd_percentage")
+            return int(value) if value is not None else None
         return None
 
     @property
@@ -487,7 +489,7 @@ class MyPVDevice(ABC):
         self._poll_count += 1
         return True
 
-    def supports_configuration(self, key: str) -> bool:
+    def supports_setup(self, key: str) -> bool:
         """Return True if the device supports the given setup parameter."""
         if key not in self._setup_values:
             return False
@@ -526,12 +528,12 @@ class MyPVDevice(ABC):
         """Returns the configuration for the the given setup parameter."""
         return self.get_setup_configurations().get(key)
 
-    def get_setup_value(self, key: str) -> Any:
+    def get_setup_value(self, key: str) -> bool | int | float | str | None:
         """Gets the value of the given setup parameter."""
         if not self.connected:
             raise MyPVConnectionError("Device not connected")
 
-        if not self.supports_configuration(key):
+        if not self.supports_setup(key):
             raise MyPVNotSupportedError(key)
 
         # Disable all but Device Mode and Target Temperature when Device Mode is Off
@@ -615,7 +617,7 @@ class MyPVDevice(ABC):
         """Returns the configuration for the the given data key."""
         return self.get_data_configurations().get(key)
 
-    def _get_data_value(self, key: str) -> Any:
+    def _get_data_value(self, key: str) -> bool | int | float | str | None:
         """Gets the value of the given data key or None if the given data key is not supported."""
         config = self.get_data_configuration(key)
         value = self._data_values.get(key)
@@ -636,7 +638,7 @@ class MyPVDevice(ABC):
 
         return value
 
-    def get_data_value(self, key: str) -> Any:
+    def get_data_value(self, key: str) -> bool | int | float | str | None:
         """Gets the value of the given data key.
 
         Throws MyPVConnectionError if the device is not connected.
@@ -656,7 +658,7 @@ class MyPVDevice(ABC):
         if not self._connection or not self.connected:
             raise MyPVConnectionError("Device not connected")
 
-        if not self.supports_configuration(key):
+        if not self.supports_setup(key):
             raise MyPVNotSupportedError(key)
 
         # Disable all but Device Mode and target temperature when Device Mode is Off
@@ -789,12 +791,14 @@ class MyPVDevice(ABC):
     @property
     def current_temperature(self) -> float | None:
         """The current temperature."""
-        return self.get_data_value("temp1") if self.supports_data("temp1") else None
+        value = self.get_data_value("temp1") if self.supports_data("temp1") else None
+        return float(value) if value is not None else None
 
     @property
     def target_temperature(self) -> float | None:
         """The target temperature."""
-        return self.get_setup_value("ww1target")
+        value = self.get_setup_value("ww1target")
+        return float(value) if value is not None else None
 
     async def set_target_temperature(self, temperature: float) -> bool:
         """Sets the device target temperature."""
