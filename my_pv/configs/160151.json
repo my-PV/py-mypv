@@ -1,12 +1,4 @@
 {
-  "commands": {},
-  "data": {
-    "power_elwa2": {
-      "name": "Heating Power",
-      "type": "number",
-      "unit": "W"
-    }
-  },
   "name": "AC ELWA 2",
   "setup": {
     "bstmode": {
@@ -18,23 +10,6 @@
         "5": "AUX-Relais"
       },
       "type": "enumeration"
-    },
-    "compmode": {
-      "advanced": true,
-      "options": {
-        "0": "AC ELWA 2 3.5 kW",
-        "1": "AC ELWA-E emulation 3.5 kW",
-        "2": "AC ELWA-E emulation 3 kW",
-        "3": "AC ELWA 2 3 kW"
-      },
-      "type": "enumeration"
-    },
-    "mainmode": {
-      "firmware": ">=e0001000",
-      "options": {
-        "1": "Hot water 3.5 kW",
-        "3": "Hot water 3.5 kW + 3 kW"
-      }
     }
   }
 }
