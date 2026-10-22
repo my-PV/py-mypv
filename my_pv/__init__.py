@@ -144,9 +144,7 @@ class MyPVDevice(ABC):
             mac_address = ":".join(mac_address[i : i + 2] for i in range(0, 12, 2))
             self._mac_address = mac_address
 
-        if self.serial_number.startswith(
-            ("160150", "160151", "160152")
-        ) and setup_values.get("compmode") not in (None, 0):
+        if setup_values.get("compmode") not in (None, 0, 3):
             raise MyPVDeviceNotSupportedError(self.serial_number)
 
         match setup_values.get("mainmode"):
