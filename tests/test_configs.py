@@ -26,7 +26,7 @@ CONFIG_FILES = sorted(p.name for p in _CONFIG_DIR.iterdir() if p.name.endswith("
 MODELS = tuple(
     name.removesuffix(".json")
     for name in CONFIG_FILES
-    if name.removesuffix(".json") != "000000"
+    if len(name.removesuffix(".json")) == 6 and name.removesuffix(".json") != "000000"
 )
 
 
