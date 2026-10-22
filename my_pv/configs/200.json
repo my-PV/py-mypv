@@ -1,0 +1,13 @@
+{
+  "setup": {
+    "rh1_target": {
+      "divider": 10,
+      "max": 95,
+      "min": 5,
+      "name": "Target Temperature",
+      "step": 0.1,
+      "type": "number",
+      "unit": "°C"
+    }
+  }
+}

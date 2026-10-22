@@ -795,11 +795,16 @@ class MyPVDevice(ABC):
     @property
     def target_temperature(self) -> float | None:
         """The target temperature."""
-        value = self.get_setup_value("ww1target")
+        if self._setup_values.get("mainmode") == 6:
+            value = self.get_setup_value("rh1_target")
+        else:
+            value = self.get_setup_value("ww1target")
         return float(value) if value is not None else None
 
     async def set_target_temperature(self, temperature: float) -> bool:
         """Sets the device target temperature."""
+        if self._setup_values.get("mainmode") == 6:
+            return await self.set_setup_value("rh1_target", temperature)
         return await self.set_setup_value("ww1target", temperature)
 
     @property
