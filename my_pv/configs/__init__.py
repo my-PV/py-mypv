@@ -55,18 +55,16 @@ def _deep_merge(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
     return dict1
 
 
-async def read_config(serial_number: str | None) -> dict[str, Any]:
+async def read_config(serial_number: str) -> dict[str, Any]:
     """Reads the configuration for a device with a given serial number."""
 
+    device_prefix = "".join(
+        c if c.isalnum() or c in "._-" else "_" for c in serial_number[:6].lower()
+    )
+    device_config_file = device_prefix + ".json"
     config_files = ["000000.json"]
-    if serial_number:
-        config_files.append(
-            "".join(
-                c if c.isalnum() or c in "._-" else "_"
-                for c in serial_number[:6].lower()
-            )
-            + ".json"
-        )
+    config_files.extend(device_prefix[:n] + ".json" for n in range(1, 7))
+
     logger.debug("Using config files %s", config_files)
 
     config: dict[str, Any] | None = None
@@ -81,8 +79,10 @@ async def read_config(serial_number: str | None) -> dict[str, Any]:
                 config = {} if config is None else config
                 config = _deep_merge(config, data)
         except FileNotFoundError:
+            if config_file == device_config_file:
+                logger.exception("Configuration file %s not found", config_file)
+                raise
             logger.debug("Configuration file %s not found", config_file)
-            raise
         except IsADirectoryError, PermissionError:
             logger.exception("Configuration file %s not accessible", config_file)
         except UnicodeDecodeError:
