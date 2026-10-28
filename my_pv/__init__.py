@@ -787,6 +787,15 @@ class MyPVDevice(ABC):
         return mode in self._main_modes
 
     @property
+    def primary_mode(self) -> MyPVDeviceMainMode | None:
+        """Returns the primary mode of the device."""
+        return (
+            self._main_modes[0]
+            if self._main_modes is not None and len(self._main_modes) >= 1
+            else None
+        )
+
+    @property
     def current_temperature(self) -> float | None:
         """The current temperature."""
         value = self.get_data_value("temp1") if self.supports_data("temp1") else None
