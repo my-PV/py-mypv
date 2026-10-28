@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.29", "hatch-vcs"]
+requires = ["hatchling>=1.32.4", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.hooks.vcs]
@@ -37,7 +37,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-	"aiohttp>=3.13.5"
+    "aiohttp>=3.14.5"
 ]
 
 [project.urls]
@@ -354,6 +354,16 @@ strict = true
 module = ["*._version"]
 ignore_missing_imports = true
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Import my_pv from the project without installing it first.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.codespell]
+ignore-words-list = "coversion"
+
 [tool.ruff]
 # https://docs.astral.sh/ruff/settings/
 # Formats like black (line length 88) and sorts imports like isort.
@@ -513,14 +523,3 @@ max-complexity = 25
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 property-decorators = ["propcache.api.cached_property"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
-# Import my_pv from the project without installing it first.
-pythonpath = ["."]
-testpaths = ["tests"]
-
-[tool.codespell]
-ignore-words-list = "coversion"
-
