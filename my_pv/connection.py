@@ -23,6 +23,7 @@ import functools
 import json
 import logging
 import time
+import typing
 from typing import Any, Final
 from urllib.parse import urlencode, urlunsplit
 
@@ -110,7 +111,10 @@ def _handle_rate_limiting[T](
 
     @functools.wraps(func)
     async def wrapper(
-        self, *args: Any, cancel: asyncio.Event | None = None, **kwargs: Any
+        self: MyPVHTTPConnection,
+        *args: Any,
+        cancel: asyncio.Event | None = None,
+        **kwargs: Any,
     ) -> T:
         async with self._write_request_lock():
             fails = 0
@@ -135,7 +139,7 @@ def _handle_reauthentication[T](
     """Re-authenticate once when the device lost the authentication."""
 
     @functools.wraps(func)
-    async def wrapper(self, *args: Any, **kwargs: Any) -> T:
+    async def wrapper(self: MyPVHTTPConnection, *args: Any, **kwargs: Any) -> T:
         try:
             return await func(self, *args, **kwargs)
         except MyPVAuthenticationError:
@@ -351,7 +355,7 @@ class MyPVHTTPConnection(MyPVConnection):
                 logger.error(response.reason)
                 raise MyPVTooManyRequestsError(response.reason)
 
-            response_json = {}
+            response_json: dict[str, Any] = {}
             if response.content_type == "application/json":
                 response_json = json.loads(response_body)
 
@@ -518,7 +522,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                 logger.error(response.reason)
                 raise MyPVTooManyRequestsError(response.reason)
 
-            response_json = {}
+            response_json: dict[str, Any] = {}
             if response.content_type == "application/json":
                 response_json = json.loads(response_body)
 
@@ -759,9 +763,11 @@ class MyPVCloudConnection(MyPVHTTPConnection):
     async def fetch_setup(self) -> dict[str, Any] | None:
         """Retrieves the device setup."""
         setup = await super().fetch_setup()
-        if not setup:
-            return None
-        return setup.get("setup", {})
+        return (
+            typing.cast(dict[str, Any], setup.get("setup"))
+            if setup and "setup" in setup
+            else None
+        )
 
     async def fetch_data(self) -> dict[str, Any] | None:
         """Retrieves the device data."""

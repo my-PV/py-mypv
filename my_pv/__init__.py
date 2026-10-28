@@ -725,7 +725,7 @@ class MyPVDevice(ABC):
 
         self._update_values(response, None)
 
-        return response.get(key) == value
+        return bool(response.get(key) == value)
 
     def supports_command(self, command: str) -> bool:
         """Returns True when a command is supported by the device."""
