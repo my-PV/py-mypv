@@ -534,7 +534,8 @@ class MyPVDevice(ABC):
 
         # Disable all but Device Mode and Target Temperature when Device Mode is Off
         if (
-            key not in ["devmode", "ww1target"]
+            key
+            not in ["devmode", "ww1target", "rh1_target", "rh2_target", "rh3_target"]
             and self._setup_values.get("devmode") == 0
         ):
             return None
@@ -659,7 +660,8 @@ class MyPVDevice(ABC):
 
         # Disable all but Device Mode and target temperature when Device Mode is Off
         if (
-            key not in ["devmode", "ww1target"]
+            key
+            not in ["devmode", "ww1target", "rh1_target", "rh2_target", "rh3_target"]
             and self._setup_values.get("devmode") == 0
         ):
             return False
