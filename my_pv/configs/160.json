@@ -4,6 +4,11 @@
       "name": "Heating Power",
       "type": "number",
       "unit": "W"
+    },
+    "upd_percentage": {
+      "name": "Update Percentage",
+      "type": "number",
+      "unit": "%"
     }
   },
   "setup": {

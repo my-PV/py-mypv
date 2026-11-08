@@ -306,7 +306,7 @@ class MyPVDevice(ABC):
                 while True:
                     logger.debug(
                         "Downloading firmware %i%%",
-                        self._get_data_value("upd_percentage"),
+                        self.firmware_update_progress,
                     )
                     if self._get_data_value("upd_state") == "10":
                         logger.debug("Downloading finished")
@@ -357,8 +357,13 @@ class MyPVDevice(ABC):
     @property
     def firmware_update_progress(self) -> int | None:
         """Returns the progress of the firmware update in percents, or None if no firmware update is active."""
-        if self._get_data_value("upd_state") == "3":
+        if self._get_data_value("upd_state") != "3":
+            return None
+        if self.supports_data("upd_percentage"):
             value = self._get_data_value("upd_percentage")
+            return int(value) if value is not None else None
+        if self.supports_data("upd_pct"):
+            value = self._get_data_value("upd_pct")
             return int(value) if value is not None else None
         return None
 
