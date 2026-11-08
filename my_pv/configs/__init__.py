@@ -65,9 +65,8 @@ async def read_config(serial_number: str) -> dict[str, Any]:
     config_files = ["000000.json"]
     config_files.extend(device_prefix[:n] + ".json" for n in range(1, 7))
 
-    logger.debug("Using config files %s", config_files)
-
     config: dict[str, Any] | None = None
+    used_config_files = []
     for config_file in config_files:
         try:
             path = importlib.resources.files("my_pv.configs").joinpath(config_file)
@@ -78,11 +77,11 @@ async def read_config(serial_number: str) -> dict[str, Any]:
             else:
                 config = {} if config is None else config
                 config = _deep_merge(config, data)
+                used_config_files.append(config_file)
         except FileNotFoundError:
             if config_file == device_config_file:
                 logger.exception("Configuration file %s not found", config_file)
                 raise
-            logger.debug("Configuration file %s not found", config_file)
         except IsADirectoryError, PermissionError:
             logger.exception("Configuration file %s not accessible", config_file)
         except UnicodeDecodeError:
@@ -91,6 +90,8 @@ async def read_config(serial_number: str) -> dict[str, Any]:
             )
         except JSONDecodeError:
             logger.warning("Invalid config file %s", config_file)
+
+    logger.debug("Used config files %s", used_config_files)
 
     if config is not None:
         return {key: val for key, val in config.items() if val is not None}
