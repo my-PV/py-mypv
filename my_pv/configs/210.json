@@ -1,0 +1,9 @@
+{
+  "data": {
+    "upd_percentage": {
+      "name": "Update Percentage",
+      "type": "number",
+      "unit": "%"
+    }
+  }
+}

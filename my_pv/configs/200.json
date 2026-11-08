@@ -1,4 +1,11 @@
 {
+  "data": {
+    "upd_pct": {
+      "name": "Update Percentage",
+      "type": "number",
+      "unit": "%"
+    }
+  },
   "setup": {
     "rh1_target": {
       "divider": 10,

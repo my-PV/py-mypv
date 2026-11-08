@@ -154,11 +154,6 @@
       "type": "number",
       "unit": "°C"
     },
-    "upd_percentage": {
-      "name": "Update Percentage",
-      "type": "number",
-      "unit": "%"
-    },
     "upd_state": {
       "name": "Update Status",
       "options": {
