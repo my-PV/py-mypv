@@ -17,7 +17,7 @@ This file defines the different connection methods the my-PV library supports.
 
 from abc import ABC, abstractmethod
 import asyncio
-from collections.abc import AsyncIterator, Callable, Coroutine
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from contextlib import asynccontextmanager
 import functools
 import json
@@ -48,6 +48,21 @@ HTTPS_PORT: Final = 443
 CLOUD_HOST = "api.my-pv.com"
 
 DONT_ENCODE = "-_.!~*'()"
+
+_REFUSED_RETRIES: Final = 5
+_REFUSED_DELAY: Final = 0.2
+
+
+async def _retry_refused[T](request: Callable[[], Awaitable[T]]) -> T:
+    """Retry a request when the device briefly refuses a new connection."""
+    for _ in range(_REFUSED_RETRIES):
+        try:
+            return await request()
+        except ClientConnectorError as exc:
+            if not isinstance(exc.os_error, ConnectionRefusedError):
+                raise
+        await asyncio.sleep(_REFUSED_DELAY)
+    return await request()
 
 
 class _MyPVRequestCancelledError(Exception):
@@ -242,12 +257,16 @@ class MyPVHTTPConnection(MyPVConnection):
         logger.debug("GET %s", auth_url)
 
         try:
-            async with session.get(
-                auth_url, **(self._request_kwargs() | {"ssl": True})
-            ) as response:
-                if response.status == 429:
-                    logger.error(response.reason)
-                    raise MyPVTooManyRequestsError(response.reason)
+
+            async def _get_auth() -> None:
+                async with session.get(
+                    auth_url, **(self._request_kwargs() | {"ssl": True})
+                ) as response:
+                    if response.status == 429:
+                        logger.error(response.reason)
+                        raise MyPVTooManyRequestsError(response.reason)
+
+            await _retry_refused(_get_auth)
         except ClientConnectorCertificateError as exc:
             # Connection is redirected to SSL, authentication is needed.
             raise MyPVAuthenticationError from exc
@@ -271,19 +290,30 @@ class MyPVHTTPConnection(MyPVConnection):
         )
 
         success = False
-        try:
-            session = self._get_session()
-            response = await session.get(mypv_dev_url, **self._request_kwargs())
-            response_body = await response.text()
-            response_json = {}
-            if response.content_type == "application/json":
-                response_json = json.loads(response_body)
 
-            if response.status != 200:
-                logger.error(
-                    "Unexpected response %i %s: %s",
+        async def _get_device() -> tuple[int, str | None, str, str]:
+            async with session.get(mypv_dev_url, **self._request_kwargs()) as response:
+                return (
                     response.status,
                     response.reason,
+                    response.content_type,
+                    await response.text(),
+                )
+
+        try:
+            session = self._get_session()
+            status, reason, content_type, response_body = await _retry_refused(
+                _get_device
+            )
+            response_json = {}
+            if content_type == "application/json":
+                response_json = json.loads(response_body)
+
+            if status != 200:
+                logger.error(
+                    "Unexpected response %i %s: %s",
+                    status,
+                    reason,
                     response_body,
                 )
             else:
@@ -301,7 +331,7 @@ class MyPVHTTPConnection(MyPVConnection):
         except json.JSONDecodeError:
             logger.exception(
                 "Invalid JSON for response status %i: %s",
-                response.status,
+                status,
                 response_body,
             )
         except (ClientError, TimeoutError) as exc:
@@ -348,33 +378,43 @@ class MyPVHTTPConnection(MyPVConnection):
         logger.debug("GET %s", url)
 
         try:
-            response = await self._session.get(url, **self._request_kwargs())
-            response_body = await response.text()
 
-            if response.status == 429:
-                logger.error(response.reason)
-                raise MyPVTooManyRequestsError(response.reason)
+            async def _get() -> tuple[int, str | None, str, str]:
+                assert self._session is not None
+                async with self._session.get(url, **self._request_kwargs()) as response:
+                    return (
+                        response.status,
+                        response.reason,
+                        response.content_type,
+                        await response.text(),
+                    )
+
+            status, reason, content_type, response_body = await _retry_refused(_get)
+
+            if status == 429:
+                logger.error(reason)
+                raise MyPVTooManyRequestsError(reason)
 
             response_json: dict[str, Any] = {}
-            if response.content_type == "application/json":
+            if content_type == "application/json":
                 response_json = json.loads(response_body)
 
-                if response.status == 200:
+                if status == 200:
                     return response_json
 
-            if response.status == 401:
+            if status == 401:
                 raise MyPVAuthenticationError(response_json.get("msg"))
 
             logger.error(
                 "Unexpected response %i %s: %s",
-                response.status,
-                response.reason,
+                status,
+                reason,
                 response_body,
             )
         except json.JSONDecodeError as exc:
             logger.exception(
                 "Invalid JSON for response status %i: %s",
-                response.status,
+                status,
                 response_body,
             )
             raise MyPVConnectionError from exc
@@ -460,14 +500,27 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         logger.debug("POST %s %s", auth_url, urlencode({"pw": "***"}, safe=DONT_ENCODE))
 
         try:
-            response = await session.post(auth_url, data=data, **self._request_kwargs())
-            response_body = await response.text()
 
-            if response.status == 429:
-                logger.error(response.reason)
-                raise MyPVTooManyRequestsError(response.reason)
+            async def _post_auth() -> tuple[int, str | None, str, str]:
+                async with session.post(
+                    auth_url, data=data, **self._request_kwargs()
+                ) as response:
+                    return (
+                        response.status,
+                        response.reason,
+                        response.content_type,
+                        await response.text(),
+                    )
 
-            if response.status == 200 and response.content_type == "application/json":
+            status, reason, content_type, response_body = await _retry_refused(
+                _post_auth
+            )
+
+            if status == 429:
+                logger.error(reason)
+                raise MyPVTooManyRequestsError(reason)
+
+            if status == 200 and content_type == "application/json":
                 response_json = json.loads(response_body)
 
                 if response_json.get("auth", 0) == 1:
@@ -475,14 +528,14 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
             else:
                 logger.error(
                     "Unexpected response %i %s: %s",
-                    response.status,
-                    response.reason,
+                    status,
+                    reason,
                     response_body,
                 )
         except json.JSONDecodeError as exc:
             logger.exception(
                 "Invalid JSON for response status %i: %s",
-                response.status,
+                status,
                 response_body,
             )
             raise MyPVConnectionError from exc
@@ -513,35 +566,46 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
         logger.debug("POST %s %s", url, encoded_data)
 
         try:
-            response = await self._session.post(
-                url, data=encoded_data, **self._request_kwargs()
-            )
-            response_body = await response.text()
 
-            if response.status == 429:
-                logger.error(response.reason)
-                raise MyPVTooManyRequestsError(response.reason)
+            async def _post() -> tuple[int, str | None, str, str]:
+                assert self._session is not None
+                async with self._session.post(
+                    url, data=encoded_data, **self._request_kwargs()
+                ) as response:
+                    if response.status == 401:
+                        raise MyPVAuthenticationError
+                    return (
+                        response.status,
+                        response.reason,
+                        response.content_type,
+                        await response.text(),
+                    )
+
+            status, reason, content_type, response_body = await _retry_refused(_post)
+
+            if status == 429:
+                logger.error(reason)
+                raise MyPVTooManyRequestsError(reason)
 
             response_json: dict[str, Any] = {}
-            if response.content_type == "application/json":
+            if response_body and content_type == "application/json":
                 response_json = json.loads(response_body)
-
-                if response.status == 200:
+                if status == 200:
                     return response_json
 
-            if response.status == 401:
+            if status == 401:
                 raise MyPVAuthenticationError(response_json.get("msg"))
 
             logger.error(
                 "Unexpected response %i %s: %s",
-                response.status,
-                response.reason,
+                status,
+                reason,
                 response_body,
             )
         except json.JSONDecodeError as exc:
             logger.exception(
                 "Invalid JSON for response status %i: %s",
-                response.status,
+                status,
                 response_body,
             )
             raise MyPVConnectionError from exc
