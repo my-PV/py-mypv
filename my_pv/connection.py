@@ -256,6 +256,7 @@ class MyPVHTTPConnection(MyPVConnection):
                 raise MyPVTooManyRequestsError from exc
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
+            logger.debug(exc)
             await self.close()
             raise MyPVConnectionError from exc
 
@@ -383,6 +384,7 @@ class MyPVHTTPConnection(MyPVConnection):
                 raise MyPVTooManyRequestsError from exc
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
+            logger.debug(exc)
             await self.close()
             raise MyPVConnectionError from exc
 
@@ -491,6 +493,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                 raise MyPVTooManyRequestsError from exc
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
+            logger.debug(exc)
             await self.close()
             raise MyPVConnectionError from exc
 
@@ -550,6 +553,7 @@ class MyPVHTTPSConnection(MyPVHTTPConnection):
                 raise MyPVTooManyRequestsError from exc
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
+            logger.debug(exc)
             await self.close()
             raise MyPVConnectionError from exc
 
@@ -750,6 +754,7 @@ class MyPVCloudConnection(MyPVHTTPConnection):
             )
             raise MyPVConnectionError from exc
         except (ClientError, TimeoutError) as exc:
+            logger.debug(exc)
             await self.close()
             raise MyPVConnectionError from exc
 
