@@ -156,7 +156,7 @@ class MyPVHTTPConnection(MyPVConnection):
 
     _PROTOCOL = "http"
     _SSL_CHECK = True
-    _TIMEOUT: ClientTimeout | None = ClientTimeout(total=5, sock_connect=1)
+    _TIMEOUT: ClientTimeout | None = ClientTimeout(total=5, sock_connect=2)
 
     _host: str
     _session: ClientSession | None = None
